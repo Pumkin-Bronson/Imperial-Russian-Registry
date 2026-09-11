@@ -487,6 +487,103 @@ th {
     font-size: 13px;
 }
 
+/* =========================================================
+   STAFF ACCOUNT MANAGEMENT
+   ========================================================= */
+
+.account-management {
+    margin-top: 25px;
+    background: var(--light-cream);
+    border: 1px solid var(--gold);
+    padding: 25px;
+}
+
+.account-management h2 {
+    margin-bottom: 6px;
+}
+
+.account-help {
+    color: var(--muted);
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 22px;
+}
+
+.account-create-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.account-list {
+    margin-top: 25px;
+    display: grid;
+    gap: 12px;
+}
+
+.account-row {
+    border: 1px solid var(--border);
+    background: #fffdf8;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) auto;
+    gap: 16px;
+    align-items: center;
+}
+
+.account-name {
+    font-weight: bold;
+    font-size: 17px;
+}
+
+.account-meta {
+    margin-top: 5px;
+    color: var(--muted);
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+}
+
+.account-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.small-action-btn,
+.danger-btn {
+    border: none;
+    padding: 8px 11px;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.small-action-btn {
+    background: #e9dfce;
+    color: var(--text);
+}
+
+.danger-btn {
+    background: var(--dark-red);
+    color: white;
+}
+
+.status-active {
+    color: #2e6b38;
+    font-weight: bold;
+}
+
+.status-disabled {
+    color: var(--red);
+    font-weight: bold;
+}
+
+.admin-only.hidden {
+    display: none !important;
+}
+
 .hidden {
     display: none !important;
 }
@@ -505,8 +602,17 @@ th {
 
     .entry-options,
     .registry-layout,
-    .admin-grid {
+    .admin-grid,
+    .account-create-grid {
         grid-template-columns: 1fr;
+    }
+
+    .account-row {
+        grid-template-columns: 1fr;
+    }
+
+    .account-actions {
+        justify-content: flex-start;
     }
 
     .section-header {
@@ -978,6 +1084,53 @@ Enter Award
 </div>
 
 
+<!-- ADMIN-ONLY STAFF ACCOUNT MANAGEMENT -->
+
+<div id="accountManagementPanel" class="account-management admin-only hidden">
+
+<h2>Staff Account Management</h2>
+
+<p class="account-help">
+Only Administrators can see this section. Create Staff or Administrator accounts,
+reset passwords, disable access, or delete accounts.
+</p>
+
+<div class="account-create-grid">
+
+<label>
+Account Name
+<input id="newStaffAccountName" placeholder="e.g. WarOffice">
+</label>
+
+<label>
+Temporary Password
+<input id="newStaffAccountPassword" type="password" placeholder="Minimum 8 characters">
+</label>
+
+<label>
+Display Name
+<input id="newStaffDisplayName" placeholder="e.g. Ministry of War">
+</label>
+
+<label>
+Role
+<select id="newStaffRole">
+<option value="staff">Staff</option>
+<option value="admin">Administrator</option>
+</select>
+</label>
+
+</div>
+
+<button class="primary-btn" onclick="createStaffAccount()">
+Create Staff Account
+</button>
+
+<div id="staffAccountList" class="account-list"></div>
+
+</div>
+
+
 <div class="audit-card">
 
 <h2>Registry Action Log</h2>
@@ -1007,14 +1160,34 @@ Enter Award
 
    This exists ONLY for testing the website.
 
-   Later this should be replaced with Supabase authentication.
+   Staff account creation/reset/delete below is also a LOCAL prototype.
+   Before public use, replace this with Supabase Auth + a server-side
+   Admin/Edge Function so passwords and privileged keys are never exposed.
 */
 
-const STAFF_ACCOUNTS = {
+const defaultStaffAccounts = {
 
-    "ImperialChancellery": "vam-demo-1894"
+    "ImperialChancellery": {
+        password: "vam-demo-1894",
+        displayName: "Imperial Chancellery",
+        role: "admin",
+        active: true
+    }
 
 };
+
+
+/* =========================================================
+   LOAD STAFF ACCOUNTS
+
+   IMPORTANT:
+   This prototype stores account passwords in localStorage.
+   It is useful for testing only and is NOT secure for a public site.
+   ========================================================= */
+
+let staffAccounts =
+JSON.parse(localStorage.getItem("vamStaffAccounts"))
+|| defaultStaffAccounts;
 
 
 /* =========================================================
@@ -1191,6 +1364,8 @@ let userRole = null;
 
 let staffName = null;
 
+let staffRole = null;
+
 let selectedPerson = null;
 
 
@@ -1274,11 +1449,17 @@ function staffLogin() {
     .value;
 
 
-    if(STAFF_ACCOUNTS[username] === password) {
+    const account =
+    staffAccounts[username];
+
+
+    if(account && account.password === password && account.active !== false) {
 
         userRole = "staff";
 
         staffName = username;
+
+        staffRole = account.role || "staff";
 
         document
         .getElementById("loginMessage")
@@ -1289,6 +1470,15 @@ function staffLogin() {
         showPage("registryPage");
 
         renderEverything();
+
+    }
+
+    else if(account && account.active === false) {
+
+        document
+        .getElementById("loginMessage")
+        .textContent =
+        "This staff account has been disabled by an Administrator.";
 
     }
 
@@ -1313,10 +1503,30 @@ function configurePermissions() {
     const staffElements =
     document.querySelectorAll(".staff-only");
 
+    const adminElements =
+    document.querySelectorAll(".admin-only");
+
 
     staffElements.forEach(element => {
 
         if(userRole === "staff") {
+
+            element.classList.remove("hidden");
+
+        }
+
+        else {
+
+            element.classList.add("hidden");
+
+        }
+
+    });
+
+
+    adminElements.forEach(element => {
+
+        if(userRole === "staff" && staffRole === "admin") {
 
             element.classList.remove("hidden");
 
@@ -1337,8 +1547,15 @@ function configurePermissions() {
 
     if(userRole === "staff") {
 
+        const account =
+        staffAccounts[staffName];
+
+        const displayName =
+        account?.displayName || staffName;
+
         badge.textContent =
-        "Staff • " + staffName;
+        (staffRole === "admin" ? "Administrator • " : "Staff • ")
+        + displayName;
 
     }
 
@@ -1361,6 +1578,8 @@ function exitRegistry() {
     userRole = null;
 
     staffName = null;
+
+    staffRole = null;
 
     selectedPerson = null;
 
@@ -1418,6 +1637,12 @@ function saveData() {
     localStorage.setItem(
         "vamAudit",
         JSON.stringify(auditLog)
+    );
+
+
+    localStorage.setItem(
+        "vamStaffAccounts",
+        JSON.stringify(staffAccounts)
     );
 
 }
@@ -2480,6 +2705,499 @@ function renderAudit() {
 
 
 /* =========================================================
+   STAFF ACCOUNT MANAGEMENT
+   ========================================================= */
+
+function requireAdministrator() {
+
+    if(userRole !== "staff" || staffRole !== "admin") {
+
+        alert("Administrator access is required.");
+
+        return false;
+
+    }
+
+    return true;
+
+}
+
+
+function createStaffAccount() {
+
+    if(!requireAdministrator()) {
+
+        return;
+
+    }
+
+
+    const accountName =
+    document
+    .getElementById("newStaffAccountName")
+    .value
+    .trim();
+
+
+    const password =
+    document
+    .getElementById("newStaffAccountPassword")
+    .value;
+
+
+    const displayName =
+    document
+    .getElementById("newStaffDisplayName")
+    .value
+    .trim();
+
+
+    const role =
+    document
+    .getElementById("newStaffRole")
+    .value;
+
+
+    if(!accountName) {
+
+        alert("Please enter an account name.");
+
+        return;
+
+    }
+
+
+    if(!/^[A-Za-z0-9_.-]{3,32}$/.test(accountName)) {
+
+        alert(
+        "Account names must be 3–32 characters and may contain letters, numbers, _, . and - only."
+        );
+
+        return;
+
+    }
+
+
+    if(password.length < 8) {
+
+        alert("The temporary password must contain at least 8 characters.");
+
+        return;
+
+    }
+
+
+    if(staffAccounts[accountName]) {
+
+        alert("That account name already exists.");
+
+        return;
+
+    }
+
+
+    staffAccounts[accountName] = {
+
+        password: password,
+
+        displayName:
+        displayName || accountName,
+
+        role:
+        role === "admin"
+        ? "admin"
+        : "staff",
+
+        active:
+        true
+
+    };
+
+
+    addAudit(
+        "Created "
+        +
+        staffAccounts[accountName].role
+        +
+        " account "
+        +
+        accountName
+    );
+
+
+    saveData();
+
+    clearStaffAccountForm();
+
+    renderStaffAccounts();
+
+    renderAudit();
+
+    alert("Staff account created.");
+
+}
+
+
+function clearStaffAccountForm() {
+
+    document
+    .getElementById("newStaffAccountName")
+    .value = "";
+
+
+    document
+    .getElementById("newStaffAccountPassword")
+    .value = "";
+
+
+    document
+    .getElementById("newStaffDisplayName")
+    .value = "";
+
+
+    document
+    .getElementById("newStaffRole")
+    .value = "staff";
+
+}
+
+
+function renderStaffAccounts() {
+
+    const panel =
+    document.getElementById("staffAccountList");
+
+
+    if(!panel) {
+
+        return;
+
+    }
+
+
+    if(userRole !== "staff" || staffRole !== "admin") {
+
+        panel.innerHTML = "";
+
+        return;
+
+    }
+
+
+    const names =
+    Object.keys(staffAccounts)
+    .sort((a,b) => a.localeCompare(b));
+
+
+    panel.innerHTML =
+    names.map(accountName => {
+
+        const account =
+        staffAccounts[accountName];
+
+
+        const isCurrent =
+        accountName === staffName;
+
+
+        const statusClass =
+        account.active !== false
+        ? "status-active"
+        : "status-disabled";
+
+
+        const statusText =
+        account.active !== false
+        ? "Active"
+        : "Disabled";
+
+
+        return `
+
+        <div class="account-row">
+
+            <div>
+
+                <div class="account-name">
+                ${escapeHTML(account.displayName || accountName)}
+                </div>
+
+                <div class="account-meta">
+
+                Account:
+                ${escapeHTML(accountName)}
+
+                • Role:
+                ${account.role === "admin" ? "Administrator" : "Staff"}
+
+                •
+                <span class="${statusClass}">
+                ${statusText}
+                </span>
+
+                ${isCurrent ? " • Current account" : ""}
+
+                </div>
+
+            </div>
+
+
+            <div class="account-actions">
+
+                <button
+                class="small-action-btn"
+                onclick="resetStaffPassword('${escapeJS(accountName)}')">
+
+                Reset Password
+
+                </button>
+
+
+                <button
+                class="small-action-btn"
+                onclick="toggleStaffAccount('${escapeJS(accountName)}')"
+                ${isCurrent ? "disabled" : ""}>
+
+                ${
+                    account.active !== false
+                    ? "Disable"
+                    : "Enable"
+                }
+
+                </button>
+
+
+                <button
+                class="danger-btn"
+                onclick="deleteStaffAccount('${escapeJS(accountName)}')"
+                ${isCurrent ? "disabled" : ""}>
+
+                Delete
+
+                </button>
+
+            </div>
+
+        </div>
+
+        `;
+
+    })
+    .join("");
+
+}
+
+
+function resetStaffPassword(accountName) {
+
+    if(!requireAdministrator()) {
+
+        return;
+
+    }
+
+
+    const account =
+    staffAccounts[accountName];
+
+
+    if(!account) {
+
+        return;
+
+    }
+
+
+    const newPassword =
+    prompt(
+        "Enter a new password for " + accountName + ".\\nMinimum 8 characters:"
+    );
+
+
+    if(newPassword === null) {
+
+        return;
+
+    }
+
+
+    if(newPassword.length < 8) {
+
+        alert("Password must contain at least 8 characters.");
+
+        return;
+
+    }
+
+
+    account.password =
+    newPassword;
+
+
+    addAudit(
+        "Reset password for staff account "
+        +
+        accountName
+    );
+
+
+    saveData();
+
+    renderAudit();
+
+    alert("Password changed.");
+
+}
+
+
+function toggleStaffAccount(accountName) {
+
+    if(!requireAdministrator()) {
+
+        return;
+
+    }
+
+
+    if(accountName === staffName) {
+
+        alert("You cannot disable the account you are currently using.");
+
+        return;
+
+    }
+
+
+    const account =
+    staffAccounts[accountName];
+
+
+    if(!account) {
+
+        return;
+
+    }
+
+
+    account.active =
+    account.active === false;
+
+
+    addAudit(
+        (account.active ? "Enabled " : "Disabled ")
+        +
+        "staff account "
+        +
+        accountName
+    );
+
+
+    saveData();
+
+    renderStaffAccounts();
+
+    renderAudit();
+
+}
+
+
+function deleteStaffAccount(accountName) {
+
+    if(!requireAdministrator()) {
+
+        return;
+
+    }
+
+
+    if(accountName === staffName) {
+
+        alert("You cannot delete the account you are currently using.");
+
+        return;
+
+    }
+
+
+    const account =
+    staffAccounts[accountName];
+
+
+    if(!account) {
+
+        return;
+
+    }
+
+
+    if(account.role === "admin") {
+
+        const activeAdmins =
+        Object.entries(staffAccounts)
+        .filter(([name, details]) =>
+            details.role === "admin"
+            &&
+            details.active !== false
+            &&
+            name !== accountName
+        );
+
+
+        if(activeAdmins.length === 0) {
+
+            alert(
+            "You cannot delete the last active Administrator account."
+            );
+
+            return;
+
+        }
+
+    }
+
+
+    const confirmed =
+    confirm(
+        "Delete staff account '" + accountName + "'?\\n\\nThis cannot be undone in this prototype."
+    );
+
+
+    if(!confirmed) {
+
+        return;
+
+    }
+
+
+    delete staffAccounts[accountName];
+
+
+    addAudit(
+        "Deleted staff account "
+        +
+        accountName
+    );
+
+
+    saveData();
+
+    renderStaffAccounts();
+
+    renderAudit();
+
+}
+
+
+function escapeJS(value) {
+
+    return String(value || "")
+    .replaceAll("\\\\", "\\\\\\\\")
+    .replaceAll("'", "\\\\'");
+
+}
+
+
+/* =========================================================
    HTML SECURITY
    ========================================================= */
 
@@ -2530,6 +3248,8 @@ function renderEverything() {
     renderPersonSelector();
 
     renderAudit();
+
+    renderStaffAccounts();
 
 }
 
