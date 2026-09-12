@@ -602,6 +602,69 @@ th {
     color: var(--muted);
 }
 
+/* =========================================================
+   REGIMENT / UNIT ROSTER
+   ========================================================= */
+
+.unit-recorder {
+    background: var(--cream);
+    border: 2px solid #424750;
+    border-radius: 14px;
+    padding: 34px;
+    margin-bottom: 28px;
+}
+
+.unit-recorder h2 {
+    margin: 0 0 8px;
+}
+
+.unit-recorder-grid {
+    display: grid;
+    grid-template-columns:
+        minmax(260px, 1.2fr)
+        minmax(240px, 1fr)
+        minmax(180px, .7fr)
+        auto
+        auto;
+    gap: 14px;
+    align-items: end;
+}
+
+.unit-recorder-grid label {
+    margin-top: 0;
+}
+
+.unit-date-btn,
+.unit-enter-btn {
+    margin-top: 0;
+    min-height: 46px;
+    white-space: nowrap;
+}
+
+.unit-status-btn {
+    border: 1px solid var(--border);
+    background: #fffdf8;
+    min-width: 42px;
+    height: 36px;
+    border-radius: 7px;
+    font-size: 18px;
+}
+
+.unit-status-btn:hover {
+    border-color: var(--gold);
+    background: #fff8e9;
+}
+
+.unit-status-active {
+    color: #2e6b38;
+    font-weight: bold;
+}
+
+.unit-status-archived {
+    color: var(--muted);
+    font-weight: bold;
+}
+
 .audit-card {
     margin-top: 25px;
     background: var(--light-cream);
@@ -738,6 +801,10 @@ th {
     }
 
     .quick-date-row {
+        grid-template-columns: 1fr;
+    }
+
+    .unit-recorder-grid {
         grid-template-columns: 1fr;
     }
 
@@ -956,7 +1023,7 @@ Honours Register
 <button
 class="tab-button"
 onclick="openTab('ranks',this)">
-Ranks
+Regiment / Unit Roster
 </button>
 
 <button
@@ -1044,7 +1111,7 @@ IMPERIAL DECORATIONS
 
 
 <!-- =====================================================
-     RANK TAB
+     REGIMENT / UNIT ROSTER TAB
      ===================================================== -->
 
 <section id="ranksTab" class="tab-content">
@@ -1054,16 +1121,76 @@ IMPERIAL DECORATIONS
 <div>
 
 <div class="small-title">
-SERVICE SENIORITY
+IMPERIAL FORMATIONS
 </div>
 
-<h2>Rank Register</h2>
+<h2>Regiment / Unit Roster</h2>
 
 </div>
 
 </div>
 
-<div id="rankTable" class="table-container">
+
+<!-- STAFF-ONLY UNIT CREATION RECORDER -->
+
+<div class="unit-recorder staff-only hidden">
+
+<div class="small-title">FORMATION RECORD ENTRY</div>
+<h2>Create Regiment / Unit</h2>
+
+<p class="quick-recorder-help">
+Record a regiment or unit title, its commander and the date it was established or entered into the registry.
+</p>
+
+<div class="unit-recorder-grid">
+
+<label>
+Regiment / Unit Title
+<input
+    id="unitRosterTitle"
+    type="text"
+    autocomplete="off"
+    placeholder="e.g. Preobrazhensky Life Guards">
+</label>
+
+<label>
+Commander of the Unit
+<input
+    id="unitRosterCommander"
+    type="text"
+    autocomplete="off"
+    placeholder="Commander name or Roblox username">
+</label>
+
+<label>
+Record Date
+<input
+    id="unitRosterDate"
+    type="date">
+</label>
+
+<button
+    class="secondary-btn unit-date-btn"
+    type="button"
+    onclick="setUnitRosterDateToday()">
+Set Date to Today
+</button>
+
+<button
+    class="primary-btn unit-enter-btn"
+    type="button"
+    onclick="createUnitRosterRecord()">
+Enter
+</button>
+
+</div>
+
+<div id="unitRosterMessage" class="quick-feedback"></div>
+
+</div>
+
+
+<div id="unitRosterTable" class="table-container">
 </div>
 
 </section>
@@ -1655,6 +1782,11 @@ JSON.parse(localStorage.getItem("vamAudit"))
 || [];
 
 
+let unitRoster =
+JSON.parse(localStorage.getItem("vamUnitRoster"))
+|| [];
+
+
 /* =========================================================
    PAGE FUNCTIONS
    ========================================================= */
@@ -2027,6 +2159,12 @@ function saveData() {
     localStorage.setItem(
         "vamAudit",
         JSON.stringify(auditLog)
+    );
+
+
+    localStorage.setItem(
+        "vamUnitRoster",
+        JSON.stringify(unitRoster)
     );
 
 }
@@ -2557,60 +2695,294 @@ function renderHonours() {
 
 
 /* =========================================================
-   RANK REGISTER
+   REGIMENT / UNIT ROSTER
    ========================================================= */
 
-function renderRanks() {
+function setUnitRosterDateToday() {
 
-    let rows =
-    personnel
-    .map(person => {
+    document
+    .getElementById("unitRosterDate")
+    .value =
+    new Date().toISOString().slice(0,10);
+
+}
+
+
+function createUnitRosterRecord() {
+
+    if(userRole !== "staff") {
+
+        return;
+
+    }
+
+
+    const title =
+    document
+    .getElementById("unitRosterTitle")
+    .value
+    .trim();
+
+
+    const commander =
+    document
+    .getElementById("unitRosterCommander")
+    .value
+    .trim();
+
+
+    const date =
+    document
+    .getElementById("unitRosterDate")
+    .value
+    ||
+    new Date().toISOString().slice(0,10);
+
+
+    const message =
+    document
+    .getElementById("unitRosterMessage");
+
+
+    if(!title || !commander) {
+
+        message.className =
+        "quick-feedback warning";
+
+        message.textContent =
+        "Regiment / Unit Title and Commander of the Unit are required.";
+
+        return;
+
+    }
+
+
+    const duplicate =
+    unitRoster.find(unit =>
+        String(unit.title || "")
+        .trim()
+        .toLowerCase()
+        ===
+        title.toLowerCase()
+    );
+
+
+    if(duplicate) {
+
+        message.className =
+        "quick-feedback warning";
+
+        message.textContent =
+        "This regiment / unit already exists in the roster.";
+
+        return;
+
+    }
+
+
+    unitRoster.push({
+
+        id:
+        "UNIT-"
+        +
+        Date.now(),
+
+        title:
+        title,
+
+        commander:
+        commander,
+
+        date:
+        date,
+
+        status:
+        "Active"
+
+    });
+
+
+    addAudit(
+        "Created regiment / unit record "
+        +
+        title
+        +
+        " under commander "
+        +
+        commander
+        +
+        " on "
+        +
+        date
+    );
+
+
+    saveData();
+
+    renderUnitRoster();
+
+    renderAudit();
+
+
+    document
+    .getElementById("unitRosterTitle")
+    .value = "";
+
+
+    document
+    .getElementById("unitRosterCommander")
+    .value = "";
+
+
+    message.className =
+    "quick-feedback success";
+
+    message.textContent =
+    "Regiment / unit added to the roster.";
+
+}
+
+
+function toggleUnitRosterStatus(unitID) {
+
+    if(userRole !== "staff") {
+
+        return;
+
+    }
+
+
+    const unit =
+    unitRoster.find(item =>
+        item.id === unitID
+    );
+
+
+    if(!unit) {
+
+        return;
+
+    }
+
+
+    unit.status =
+    unit.status === "Archived"
+    ? "Active"
+    : "Archived";
+
+
+    addAudit(
+        "Changed regiment / unit "
+        +
+        unit.title
+        +
+        " status to "
+        +
+        unit.status
+    );
+
+
+    saveData();
+
+    renderUnitRoster();
+
+    renderAudit();
+
+}
+
+
+function renderUnitRoster() {
+
+    const panel =
+    document
+    .getElementById("unitRosterTable");
+
+
+    if(!panel) {
+
+        return;
+
+    }
+
+
+    if(unitRoster.length === 0) {
+
+        panel.innerHTML = `
+
+        <div class="empty-message">
+        No regiments or units have been recorded.
+        </div>
+
+        `;
+
+        return;
+
+    }
+
+
+    const rows =
+    [...unitRoster]
+    .sort((a,b) =>
+        String(a.title || "")
+        .localeCompare(
+            String(b.title || "")
+        )
+    )
+    .map(unit => {
+
+        const status =
+        unit.status === "Archived"
+        ? "Archived"
+        : "Active";
+
 
         return `
 
         <tr>
 
-        <td>
+            <td>
+                <strong>
+                ${escapeHTML(unit.title)}
+                </strong>
+            </td>
 
-        <strong>
-        ${escapeHTML(person.name)}
-        </strong>
+            <td>
+                ${escapeHTML(unit.commander)}
+            </td>
 
-        <div class="person-meta">
+            <td>
+                ${escapeHTML(unit.date || "—")}
+            </td>
 
-        @${escapeHTML(person.username)}
+            <td>
+                <span class="${
+                    status === "Active"
+                    ? "unit-status-active"
+                    : "unit-status-archived"
+                }">
+                ${status}
+                </span>
+            </td>
 
-        </div>
+            <td>
 
-        </td>
+                ${
+                    userRole === "staff"
+                    ?
+                    `
+                    <button
+                    class="unit-status-btn"
+                    type="button"
+                    title="Change unit status"
+                    onclick="toggleUnitRosterStatus('${escapeJS(unit.id)}')">
+                    ⚙️
+                    </button>
+                    `
+                    :
+                    "—"
+                }
 
-
-        <td>
-        ${escapeHTML(person.rank)}
-        </td>
-
-
-        <td>
-
-        ${
-            person.title
-            ?
-            escapeHTML(person.title)
-            :
-            "—"
-        }
-
-        </td>
-
-
-        <td>
-        ${escapeHTML(person.unit)}
-        </td>
-
-
-        <td>
-        ${escapeHTML(person.status)}
-        </td>
+            </td>
 
         </tr>
 
@@ -2620,39 +2992,45 @@ function renderRanks() {
     .join("");
 
 
-    document
-    .getElementById("rankTable")
-    .innerHTML = `
+    panel.innerHTML = `
 
     <table>
 
-    <thead>
+        <thead>
 
-    <tr>
+            <tr>
 
-    <th>Personnel</th>
+                <th>Regiment / Unit Title</th>
 
-    <th>Current Rank</th>
+                <th>Commander of the Unit</th>
 
-    <th>Title</th>
+                <th>Record Date</th>
 
-    <th>Unit / Office</th>
+                <th>Status</th>
 
-    <th>Status</th>
+                <th>Actions</th>
 
-    </tr>
+            </tr>
 
-    </thead>
+        </thead>
 
-    <tbody>
+        <tbody>
 
-    ${rows}
+            ${rows}
 
-    </tbody>
+        </tbody>
 
     </table>
 
     `;
+
+}
+
+
+/* Kept as a compatibility alias because the existing tab is still internally named "ranks". */
+function renderRanks() {
+
+    renderUnitRoster();
 
 }
 
