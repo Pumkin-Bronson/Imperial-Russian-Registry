@@ -530,6 +530,47 @@ th {
     color: #2e6b38;
 }
 
+.quick-note-box {
+    margin-top: 22px;
+    background: #fffdf8;
+    border: 2px solid #424750;
+    border-radius: 12px;
+    padding: 18px;
+}
+
+.quick-note-box label {
+    margin-top: 0;
+}
+
+.quick-note-box textarea {
+    min-height: 110px;
+    resize: vertical;
+}
+
+.quick-date-row {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: minmax(220px, 320px) auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.quick-date-row input {
+    margin-top: 7px;
+}
+
+.quick-date-btn {
+    margin-top: 0;
+    min-height: 44px;
+}
+
+.quick-note-help {
+    margin-top: 8px;
+    color: var(--muted);
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+}
+
 .username-suggestions {
     margin-top: 8px;
     display: grid;
@@ -693,6 +734,10 @@ th {
     .admin-grid,
     .account-create-grid,
     .quick-recorder-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-date-row {
         grid-template-columns: 1fr;
     }
 
@@ -1055,7 +1100,7 @@ REGISTRY ADMINISTRATION
 <h2>Personnel Action Recorder</h2>
 
 <p class="quick-recorder-help">
-Enter a Roblox username and select a rank or medal. If the username already exists,
+Enter a Roblox username and select a rank, medal or title. If the username already exists,
 the action is added to that profile. Otherwise a new profile is created automatically.
 </p>
 
@@ -1104,6 +1149,15 @@ Input
 <option value="rank::Mladshiy Ryadovoy">Mladshiy Ryadovoy</option>
 <option value="rank::Rekrut">Rekrut</option>
 </optgroup>
+<optgroup label="Title">
+<option value="title::Velikiy Knyaz">Velikiy Knyaz</option>
+<option value="title::Knyaz">Knyaz</option>
+<option value="title::Gertsog">Gertsog</option>
+<option value="title::Markiz">Markiz</option>
+<option value="title::Graf">Graf</option>
+<option value="title::Baron">Baron</option>
+<option value="title::Rytsar">Rytsar</option>
+</optgroup>
 <optgroup label="Medal">
 <option value="medal::Saint George Class I">Saint George Class I</option>
 <option value="medal::Saint George Class II">Saint George Class II</option>
@@ -1147,6 +1201,40 @@ Input
     onclick="submitQuickRecord()">
 Enter
 </button>
+
+</div>
+
+<div class="quick-note-box">
+
+<label>
+Note / Reason
+<textarea
+    id="quickRecordNote"
+    rows="4"
+    placeholder="Enter the reason for the reward, promotion or title..."></textarea>
+</label>
+
+<div class="quick-date-row">
+
+<label>
+Record Date
+<input
+    id="quickRecordDate"
+    type="date">
+</label>
+
+<button
+    class="secondary-btn quick-date-btn"
+    type="button"
+    onclick="setQuickRecordDateToday()">
+Set Date to Today
+</button>
+
+</div>
+
+<div class="quick-note-help">
+The selected date and note will be stored with the rank, medal or title record.
+</div>
 
 </div>
 
@@ -2127,12 +2215,51 @@ function openPassport(personID) {
 
         ${escapeHTML(rank.rank)}
 
+        ${
+            rank.reason
+            ?
+            `<div class="person-meta">${escapeHTML(rank.reason)}</div>`
+            :
+            ""
+        }
+
         </li>
 
         `;
 
     })
     .join("");
+
+
+    const titleHistory =
+    Array.isArray(person.titleHistory)
+    ? person.titleHistory
+    : [];
+
+
+    const titleHTML =
+    titleHistory.length === 0
+    ?
+    `<div class="person-meta">No title history recorded.</div>`
+    :
+    `<ol>` +
+    titleHistory
+    .map(entry => `
+        <li>
+        ${escapeHTML(entry.date || "")}
+        —
+        ${escapeHTML(entry.title || "")}
+        ${
+            entry.reason
+            ?
+            `<div class="person-meta">${escapeHTML(entry.reason)}</div>`
+            :
+            ""
+        }
+        </li>
+    `)
+    .join("")
+    + `</ol>`;
 
 
     panel.innerHTML = `
@@ -2267,6 +2394,17 @@ function openPassport(personID) {
     ${rankHTML}
 
     </ol>
+
+    </div>
+
+
+    <div class="passport-section">
+
+    <h3>
+    Title History
+    </h3>
+
+    ${titleHTML}
 
     </div>
 
@@ -2552,6 +2690,16 @@ const QUICK_RANKS = [
     "Rekrut"
 ];
 
+const QUICK_TITLES = [
+    "Velikiy Knyaz",
+    "Knyaz",
+    "Gertsog",
+    "Markiz",
+    "Graf",
+    "Baron",
+    "Rytsar"
+];
+
 const QUICK_MEDALS = [
     "Saint George Class I",
     "Saint George Class II",
@@ -2731,6 +2879,22 @@ function personAlreadyHasAction(person, action) {
 
     }
 
+    if(action.type === "title") {
+
+        const history = Array.isArray(person.titleHistory)
+            ? person.titleHistory
+            : [];
+
+        return (
+            normalizeRobloxUsername(person.title) === normalizeRobloxUsername(action.value)
+            ||
+            history.some(entry =>
+                normalizeRobloxUsername(entry.title) === normalizeRobloxUsername(action.value)
+            )
+        );
+
+    }
+
     return false;
 
 }
@@ -2790,7 +2954,7 @@ function updateQuickRecorder() {
         if(exact && action && personAlreadyHasAction(exact, action)) {
 
             warningBox.textContent =
-            "User already possessed the rank or award.";
+            "User already possessed the rank, award or title.";
 
             warningBox.classList.add("warning");
 
@@ -2815,6 +2979,28 @@ function updateQuickRecorder() {
 }
 
 
+function setQuickRecordDateToday() {
+
+    document
+    .getElementById("quickRecordDate")
+    .value =
+    new Date().toISOString().slice(0,10);
+
+}
+
+
+function getQuickRecordDate() {
+
+    const value =
+    document
+    .getElementById("quickRecordDate")
+    .value;
+
+    return value || new Date().toISOString().slice(0,10);
+
+}
+
+
 function submitQuickRecord() {
 
     if(userRole !== "staff") {
@@ -2829,6 +3015,13 @@ function submitQuickRecord() {
 
     const username = usernameInput.value.trim();
     const action = parseQuickAction();
+
+    const note = document
+    .getElementById("quickRecordNote")
+    .value
+    .trim();
+
+    const recordDate = getQuickRecordDate();
 
     const warningBox = document
     .getElementById("quickRecordWarning");
@@ -2859,7 +3052,7 @@ function submitQuickRecord() {
     if(!action) {
 
         warningBox.textContent =
-        "Please select a rank or medal from Input.";
+        "Please select a rank, medal or title from Input.";
 
         warningBox.classList.add("warning");
         return;
@@ -2872,7 +3065,7 @@ function submitQuickRecord() {
     if(person && personAlreadyHasAction(person, action)) {
 
         warningBox.textContent =
-        "User already possessed the rank or award.";
+        "User already possessed the rank, award or title.";
 
         warningBox.classList.add("warning");
         return;
@@ -2890,7 +3083,8 @@ function submitQuickRecord() {
             unit: "",
             status: "Active",
             medals: [],
-            rankHistory: []
+            rankHistory: [],
+            titleHistory: []
         };
 
         personnel.push(person);
@@ -2900,6 +3094,7 @@ function submitQuickRecord() {
 
     if(!Array.isArray(person.medals)) person.medals = [];
     if(!Array.isArray(person.rankHistory)) person.rankHistory = [];
+    if(!Array.isArray(person.titleHistory)) person.titleHistory = [];
 
     if(action.type === "rank") {
 
@@ -2907,7 +3102,8 @@ function submitQuickRecord() {
 
         person.rankHistory.push({
             rank: action.value,
-            date: new Date().toISOString().slice(0,10)
+            date: recordDate,
+            reason: note
         });
 
     }
@@ -2917,8 +3113,20 @@ function submitQuickRecord() {
         person.medals.push({
             name: action.value,
             grade: "",
-            date: new Date().toISOString().slice(0,10),
-            citation: "Recorded through Personnel Action Recorder."
+            date: recordDate,
+            citation: note || "Recorded through Personnel Action Recorder."
+        });
+
+    }
+
+    if(action.type === "title") {
+
+        person.title = action.value;
+
+        person.titleHistory.push({
+            title: action.value,
+            date: recordDate,
+            reason: note
         });
 
     }
@@ -2930,6 +3138,9 @@ function submitQuickRecord() {
         + action.value
         + " for Roblox user "
         + username
+        + " on "
+        + recordDate
+        + (note ? " — " + note : "")
     );
 
     saveData();
@@ -2945,7 +3156,10 @@ function submitQuickRecord() {
 
     warningBox.classList.add("success");
 
-    document.getElementById("quickRecordAction").value = "";
+    /*
+       Keep the selected Input action after submission so staff do not
+       need to re-select it for the next record.
+    */
     updateQuickRecorder();
 
 }
