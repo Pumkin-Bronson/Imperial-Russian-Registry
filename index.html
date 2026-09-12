@@ -571,6 +571,38 @@ th {
     font-size: 12px;
 }
 
+.quick-unit-assignment-box {
+    margin-top: 18px;
+    background: #fffdf8;
+    border: 2px solid #424750;
+    border-radius: 12px;
+    padding: 18px;
+}
+
+.quick-unit-assignment-box label {
+    margin-top: 0;
+}
+
+.quick-unit-message {
+    min-height: 22px;
+    margin-top: 8px;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.quick-unit-message.warning {
+    color: var(--red);
+}
+
+.quick-unit-message.notice {
+    color: #8a5d00;
+}
+
+.quick-unit-message.success {
+    color: #2e6b38;
+}
+
 .username-suggestions {
     margin-top: 8px;
     display: grid;
@@ -1362,6 +1394,24 @@ Input
     onclick="submitQuickRecord()">
 Enter
 </button>
+
+</div>
+
+<div class="quick-unit-assignment-box">
+
+<label>
+Regiment / Unit
+<select
+    id="quickUnitAssignment"
+    onchange="updateQuickRecorder()">
+<option value="">Select active regiment / unit...</option>
+</select>
+</label>
+
+<div
+    id="quickUnitAssignmentMessage"
+    class="quick-unit-message">
+</div>
 
 </div>
 
@@ -3385,7 +3435,238 @@ function chooseSuggestedUsername(username) {
 }
 
 
+function populateQuickUnitAssignment() {
+
+    const select =
+    document
+    .getElementById("quickUnitAssignment");
+
+
+    if(!select) {
+
+        return;
+
+    }
+
+
+    const previousValue =
+    select.value;
+
+
+    const activeUnits =
+    unitRoster
+    .filter(unit =>
+        unit.status !== "Archived"
+    )
+    .sort((a,b) =>
+        String(a.title || "")
+        .localeCompare(
+            String(b.title || "")
+        )
+    );
+
+
+    select.innerHTML =
+    '<option value="">Select active regiment / unit...</option>'
+    +
+    activeUnits
+    .map(unit => `
+        <option value="${escapeHTML(unit.title)}">
+        ${escapeHTML(unit.title)}
+        </option>
+    `)
+    .join("");
+
+
+    if(
+        previousValue
+        &&
+        activeUnits.some(unit =>
+            unit.title === previousValue
+        )
+    ) {
+
+        select.value =
+        previousValue;
+
+    }
+
+}
+
+
+function getQuickRecorderPerson() {
+
+    const input =
+    document
+    .getElementById("quickRobloxUsername");
+
+
+    if(!input) {
+
+        return null;
+
+    }
+
+
+    const username =
+    normalizeRobloxUsername(
+        input.value
+    );
+
+
+    if(!username) {
+
+        return null;
+
+    }
+
+
+    return personnel.find(person =>
+        normalizeRobloxUsername(person.username)
+        ===
+        username
+    )
+    || null;
+
+}
+
+
+function evaluateQuickUnitAssignment() {
+
+    const select =
+    document
+    .getElementById("quickUnitAssignment");
+
+
+    const message =
+    document
+    .getElementById("quickUnitAssignmentMessage");
+
+
+    if(!select || !message) {
+
+        return {
+            blocked: false,
+            selectedUnit: "",
+            existingPerson: null,
+            ignoreUnitChange: false
+        };
+
+    }
+
+
+    const selectedUnit =
+    select.value;
+
+
+    const person =
+    getQuickRecorderPerson();
+
+
+    message.className =
+    "quick-unit-message";
+
+    message.textContent =
+    "";
+
+
+    if(!selectedUnit) {
+
+        return {
+            blocked: false,
+            selectedUnit: "",
+            existingPerson: person,
+            ignoreUnitChange: false
+        };
+
+    }
+
+
+    /*
+       A brand-new username does not yet have a profile, so the selected
+       active Regiment / Unit will be assigned when the profile is created.
+    */
+    if(!person) {
+
+        return {
+            blocked: false,
+            selectedUnit: selectedUnit,
+            existingPerson: null,
+            ignoreUnitChange: false
+        };
+
+    }
+
+
+    const currentUnit =
+    String(person.unit || "")
+    .trim();
+
+
+    /*
+       Existing profile but no current Regiment / Unit:
+       show the requested warning and block Enter.
+    */
+    if(!currentUnit) {
+
+        message.className =
+        "quick-unit-message warning";
+
+        message.textContent =
+        "User has not yet been assigned to a regiment or unit.";
+
+
+        return {
+            blocked: true,
+            selectedUnit: selectedUnit,
+            existingPerson: person,
+            ignoreUnitChange: false
+        };
+
+    }
+
+
+    /*
+       Existing profile has a different Regiment / Unit:
+       warn Staff, but allow the action. The profile's current unit is not
+       replaced by the new selection.
+    */
+    if(
+        normalizeRobloxUsername(currentUnit)
+        !==
+        normalizeRobloxUsername(selectedUnit)
+    ) {
+
+        message.className =
+        "quick-unit-message notice";
+
+        message.textContent =
+        "User has been assigned to a regiment or unit";
+
+
+        return {
+            blocked: false,
+            selectedUnit: selectedUnit,
+            existingPerson: person,
+            ignoreUnitChange: true
+        };
+
+    }
+
+
+    return {
+        blocked: false,
+        selectedUnit: selectedUnit,
+        existingPerson: person,
+        ignoreUnitChange: false
+    };
+
+}
+
+
 function updateQuickRecorder() {
+
+    populateQuickUnitAssignment();
 
     const username = document
     .getElementById("quickRobloxUsername")
@@ -3450,6 +3731,9 @@ function updateQuickRecorder() {
 
     }
 
+
+    evaluateQuickUnitAssignment();
+
 }
 
 
@@ -3497,6 +3781,12 @@ function submitQuickRecord() {
 
     const recordDate = getQuickRecordDate();
 
+    const unitEvaluation =
+    evaluateQuickUnitAssignment();
+
+    const selectedUnit =
+    unitEvaluation.selectedUnit;
+
     const warningBox = document
     .getElementById("quickRecordWarning");
 
@@ -3533,6 +3823,16 @@ function submitQuickRecord() {
 
     }
 
+    if(unitEvaluation.blocked) {
+
+        warningBox.textContent =
+        "Cannot proceed until the user's regiment / unit assignment is resolved.";
+
+        warningBox.classList.add("warning");
+        return;
+
+    }
+
     let person = findExactPersonnelByUsername(username);
     let createdNew = false;
 
@@ -3554,11 +3854,12 @@ function submitQuickRecord() {
             username: username,
             rank: "Unranked",
             title: "",
-            unit: "",
+            unit: selectedUnit || "",
             status: "Active",
             medals: [],
             rankHistory: [],
-            titleHistory: []
+            titleHistory: [],
+            unitHistory: []
         };
 
         personnel.push(person);
@@ -3569,6 +3870,22 @@ function submitQuickRecord() {
     if(!Array.isArray(person.medals)) person.medals = [];
     if(!Array.isArray(person.rankHistory)) person.rankHistory = [];
     if(!Array.isArray(person.titleHistory)) person.titleHistory = [];
+    if(!Array.isArray(person.unitHistory)) person.unitHistory = [];
+
+    if(
+        createdNew
+        &&
+        selectedUnit
+    ) {
+
+        person.unitHistory.push({
+            unit: selectedUnit,
+            date: recordDate,
+            reason: note
+        });
+
+    }
+
 
     if(action.type === "rank") {
 
@@ -3615,6 +3932,11 @@ function submitQuickRecord() {
         + " on "
         + recordDate
         + (note ? " — " + note : "")
+        + (
+            selectedUnit
+            ? " • Regiment / Unit selection: " + selectedUnit
+            : ""
+        )
     );
 
     saveData();
@@ -4713,6 +5035,9 @@ function renderEverything() {
     if(document.getElementById("quickRobloxUsername")) {
         updateQuickRecorder();
     }
+
+
+    populateQuickUnitAssignment();
 
 }
 
