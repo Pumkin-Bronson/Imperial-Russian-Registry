@@ -473,6 +473,94 @@ th {
     padding: 25px;
 }
 
+/* =========================================================
+   QUICK PERSONNEL RECORDER
+   ========================================================= */
+
+.quick-recorder {
+    background: var(--cream);
+    border: 2px solid #424750;
+    border-radius: 14px;
+    padding: 34px;
+    margin-bottom: 28px;
+}
+
+.quick-recorder h2 {
+    margin: 0 0 8px;
+}
+
+.quick-recorder-help {
+    margin: 0 0 24px;
+    color: var(--muted);
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.quick-recorder-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, .8fr) minmax(360px, 1.2fr) auto;
+    gap: 18px;
+    align-items: end;
+}
+
+.quick-recorder label {
+    margin-top: 0;
+}
+
+.quick-enter-btn {
+    min-height: 46px;
+    margin-top: 0;
+    white-space: nowrap;
+}
+
+.quick-feedback {
+    min-height: 24px;
+    margin-top: 12px;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.quick-feedback.warning {
+    color: var(--red);
+}
+
+.quick-feedback.success {
+    color: #2e6b38;
+}
+
+.username-suggestions {
+    margin-top: 8px;
+    display: grid;
+    gap: 6px;
+}
+
+.username-suggestion {
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--border);
+    background: #fffdf8;
+    padding: 9px 11px;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+}
+
+.username-suggestion:hover {
+    border-color: var(--gold);
+    background: #fff8e9;
+}
+
+.username-suggestion strong {
+    font-size: 13px;
+}
+
+.username-suggestion small {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+}
+
 .audit-card {
     margin-top: 25px;
     background: var(--light-cream);
@@ -603,7 +691,8 @@ th {
     .entry-options,
     .registry-layout,
     .admin-grid,
-    .account-create-grid {
+    .account-create-grid,
+    .quick-recorder-grid {
         grid-template-columns: 1fr;
     }
 
@@ -952,6 +1041,112 @@ REGISTRY ADMINISTRATION
 </div>
 
 <h2>Staff Desk</h2>
+
+</div>
+
+</div>
+
+
+<!-- QUICK PERSONNEL RECORDER -->
+
+<div class="quick-recorder">
+
+<div class="small-title">QUICK RECORD ENTRY</div>
+<h2>Personnel Action Recorder</h2>
+
+<p class="quick-recorder-help">
+Enter a Roblox username and select a rank or medal. If the username already exists,
+the action is added to that profile. Otherwise a new profile is created automatically.
+</p>
+
+<div class="quick-recorder-grid">
+
+<label>
+Roblox Username
+<input
+    id="quickRobloxUsername"
+    type="text"
+    autocomplete="off"
+    placeholder="Roblox Username"
+    oninput="updateQuickRecorder()">
+<div id="usernameSuggestions" class="username-suggestions"></div>
+</label>
+
+<label>
+Input
+<select id="quickRecordAction" onchange="updateQuickRecorder()">
+<option value="">Select an action...</option>
+<optgroup label="Rank">
+<option value="rank::Nachal'nik General'novo Shtaba">Nachal'nik General'novo Shtaba</option>
+<option value="rank::General-Feld'marshal">General-Feld'marshal</option>
+<option value="rank::General-Leytenant">General-Leytenant</option>
+<option value="rank::General-Mayor">General-Mayor</option>
+<option value="rank::General-Ad'yudant">General-Ad'yudant</option>
+<option value="rank::Fligel'-Ad'yudant">Fligel'-Ad'yudant</option>
+<option value="rank::Nachal'nik Shtaba Korpusa">Nachal'nik Shtaba Korpusa</option>
+<option value="rank::Ad'yudant">Ad'yudant</option>
+<option value="rank::General-Kvartimeyster">General-Kvartimeyster</option>
+<option value="rank::Ober-Ofitser Kvartimeyster">Ober-Ofitser Kvartimeyster</option>
+<option value="rank::Kolonnovozhatiy">Kolonnovozhatiy</option>
+<option value="rank::Polkovnik">Polkovnik</option>
+<option value="rank::Podpolkovnik">Podpolkovnik</option>
+<option value="rank::Mayor">Mayor</option>
+<option value="rank::Kapitan">Kapitan</option>
+<option value="rank::Shtabs-Kapitan">Shtabs-Kapitan</option>
+<option value="rank::Poruchik">Poruchik</option>
+<option value="rank::Podporuchik">Podporuchik</option>
+<option value="rank::Praporschik">Praporschik</option>
+<option value="rank::Feld'febel'">Feld'febel'</option>
+<option value="rank::Portupey-Praporschik">Portupey-Praporschik</option>
+<option value="rank::Podpraporschik">Podpraporschik</option>
+<option value="rank::Mladshiy Unter-Ofitser">Mladshiy Unter-Ofitser</option>
+<option value="rank::Starshiy Ryadovoy">Starshiy Ryadovoy</option>
+<option value="rank::Mladshiy Ryadovoy">Mladshiy Ryadovoy</option>
+<option value="rank::Rekrut">Rekrut</option>
+</optgroup>
+<optgroup label="Medal">
+<option value="medal::Saint George Class I">Saint George Class I</option>
+<option value="medal::Saint George Class II">Saint George Class II</option>
+<option value="medal::Saint George Class III">Saint George Class III</option>
+<option value="medal::Saint George Class IV">Saint George Class IV</option>
+<option value="medal::Cross of Saint George">Cross of Saint George</option>
+<option value="medal::Saint Anna Class I">Saint Anna Class I</option>
+<option value="medal::Saint Anna Class II">Saint Anna Class II</option>
+<option value="medal::Saint Anna Class III">Saint Anna Class III</option>
+<option value="medal::Badge of Anna Class">Badge of Anna Class</option>
+<option value="medal::Saint Vladimir Class I">Saint Vladimir Class I</option>
+<option value="medal::Saint Vladimir Class II">Saint Vladimir Class II</option>
+<option value="medal::Saint Vladimir Class III">Saint Vladimir Class III</option>
+<option value="medal::Saint Vladimir Class IV">Saint Vladimir Class IV</option>
+<option value="medal::Saint Andrew">Saint Andrew</option>
+<option value="medal::Nevskiy Star">Nevskiy Star</option>
+<option value="medal::Nevskiy Cross">Nevskiy Cross</option>
+<option value="medal::In Remembrance of 1812 - Silver">In Remembrance of 1812 - Silver</option>
+<option value="medal::In Remembrance of 1812 - Bronze">In Remembrance of 1812 - Bronze</option>
+<option value="medal::Victory at Preussisch-Eylau - Gold">Victory at Preussisch-Eylau - Gold</option>
+<option value="medal::Victory at Preussisch-Eylau - Silver">Victory at Preussisch-Eylau - Silver</option>
+<option value="medal::Capture of Paris - Silver">Capture of Paris - Silver</option>
+<option value="medal::For Capture of Bazardzhik - Gold">For Capture of Bazardzhik - Gold</option>
+<option value="medal::For Capture of Bazardzhik - Silver">For Capture of Bazardzhik - Silver</option>
+<option value="medal::For Circumnavigation of Earth - Silver">For Circumnavigation of Earth - Silver</option>
+<option value="medal::For Circumnavigation of Earth - Bronze">For Circumnavigation of Earth - Bronze</option>
+<option value="medal::For the Crossing to the Swedish Coast - Silver">For the Crossing to the Swedish Coast - Silver</option>
+<option value="medal::For Labor and Bravery in the Capture of Ganja - Bronze">For Labor and Bravery in the Capture of Ganja - Bronze</option>
+<option value="medal::For the Zemstvo Troops - Gold">For the Zemstvo Troops - Gold</option>
+<option value="medal::For the Zemstvo Troops - Silver">For the Zemstvo Troops - Silver</option>
+<option value="medal::For Bravery and Diligence 1804">For Bravery and Diligence 1804</option>
+<option value="medal::Medal in Honour of the Distinguished Soldier of 1806">Medal in Honour of the Distinguished Soldier of 1806</option>
+</optgroup>
+</select>
+<div id="quickRecordWarning" class="quick-feedback"></div>
+</label>
+
+<button
+    class="primary-btn quick-enter-btn"
+    type="button"
+    onclick="submitQuickRecord()">
+Enter
+</button>
 
 </div>
 
@@ -2325,6 +2520,438 @@ function renderRanks() {
 
 
 /* =========================================================
+   QUICK PERSONNEL RECORDER
+   ========================================================= */
+
+const QUICK_RANKS = [
+    "Nachal'nik General'novo Shtaba",
+    "General-Feld'marshal",
+    "General-Leytenant",
+    "General-Mayor",
+    "General-Ad'yudant",
+    "Fligel'-Ad'yudant",
+    "Nachal'nik Shtaba Korpusa",
+    "Ad'yudant",
+    "General-Kvartimeyster",
+    "Ober-Ofitser Kvartimeyster",
+    "Kolonnovozhatiy",
+    "Polkovnik",
+    "Podpolkovnik",
+    "Mayor",
+    "Kapitan",
+    "Shtabs-Kapitan",
+    "Poruchik",
+    "Podporuchik",
+    "Praporschik",
+    "Feld'febel'",
+    "Portupey-Praporschik",
+    "Podpraporschik",
+    "Mladshiy Unter-Ofitser",
+    "Starshiy Ryadovoy",
+    "Mladshiy Ryadovoy",
+    "Rekrut"
+];
+
+const QUICK_MEDALS = [
+    "Saint George Class I",
+    "Saint George Class II",
+    "Saint George Class III",
+    "Saint George Class IV",
+    "Cross of Saint George",
+    "Saint Anna Class I",
+    "Saint Anna Class II",
+    "Saint Anna Class III",
+    "Badge of Anna Class",
+    "Saint Vladimir Class I",
+    "Saint Vladimir Class II",
+    "Saint Vladimir Class III",
+    "Saint Vladimir Class IV",
+    "Saint Andrew",
+    "Nevskiy Star",
+    "Nevskiy Cross",
+    "In Remembrance of 1812 - Silver",
+    "In Remembrance of 1812 - Bronze",
+    "Victory at Preussisch-Eylau - Gold",
+    "Victory at Preussisch-Eylau - Silver",
+    "Capture of Paris - Silver",
+    "For Capture of Bazardzhik - Gold",
+    "For Capture of Bazardzhik - Silver",
+    "For Circumnavigation of Earth - Silver",
+    "For Circumnavigation of Earth - Bronze",
+    "For the Crossing to the Swedish Coast - Silver",
+    "For Labor and Bravery in the Capture of Ganja - Bronze",
+    "For the Zemstvo Troops - Gold",
+    "For the Zemstvo Troops - Silver",
+    "For Bravery and Diligence 1804",
+    "Medal in Honour of the Distinguished Soldier of 1806"
+];
+
+
+function normalizeRobloxUsername(value) {
+
+    return String(value || "")
+    .trim()
+    .toLowerCase();
+
+}
+
+
+function compactUsername(value) {
+
+    return normalizeRobloxUsername(value)
+    .replace(/[^a-z0-9]/g, "");
+
+}
+
+
+function levenshteinDistance(a,b) {
+
+    const first = compactUsername(a);
+    const second = compactUsername(b);
+
+    const matrix = Array.from(
+        { length: first.length + 1 },
+        () => Array(second.length + 1).fill(0)
+    );
+
+    for(let i = 0; i <= first.length; i++) matrix[i][0] = i;
+    for(let j = 0; j <= second.length; j++) matrix[0][j] = j;
+
+    for(let i = 1; i <= first.length; i++) {
+
+        for(let j = 1; j <= second.length; j++) {
+
+            const cost = first[i - 1] === second[j - 1] ? 0 : 1;
+
+            matrix[i][j] = Math.min(
+                matrix[i - 1][j] + 1,
+                matrix[i][j - 1] + 1,
+                matrix[i - 1][j - 1] + cost
+            );
+
+        }
+
+    }
+
+    return matrix[first.length][second.length];
+
+}
+
+
+function findExactPersonnelByUsername(username) {
+
+    const target = normalizeRobloxUsername(username);
+
+    return personnel.find(person =>
+        normalizeRobloxUsername(person.username) === target
+    );
+
+}
+
+
+function getSimilarPersonnel(username) {
+
+    const typed = compactUsername(username);
+
+    if(typed.length < 2) return [];
+
+    return personnel
+    .map(person => {
+
+        const candidate = compactUsername(person.username);
+        const distance = levenshteinDistance(typed, candidate);
+        const contains = candidate.includes(typed) || typed.includes(candidate);
+        const starts = candidate.startsWith(typed) || typed.startsWith(candidate);
+        const threshold = Math.max(2, Math.ceil(Math.max(typed.length, candidate.length) * 0.28));
+
+        return {
+            person,
+            distance,
+            match: contains || starts || distance <= threshold
+        };
+
+    })
+    .filter(item => item.match)
+    .sort((a,b) => a.distance - b.distance)
+    .slice(0,6)
+    .map(item => item.person);
+
+}
+
+
+function parseQuickAction() {
+
+    const raw = document
+    .getElementById("quickRecordAction")
+    .value;
+
+    if(!raw || !raw.includes("::")) {
+        return null;
+    }
+
+    const separator = raw.indexOf("::");
+
+    return {
+        type: raw.slice(0, separator),
+        value: raw.slice(separator + 2)
+    };
+
+}
+
+
+function personAlreadyHasAction(person, action) {
+
+    if(!person || !action) return false;
+
+    if(action.type === "rank") {
+
+        const history = Array.isArray(person.rankHistory)
+            ? person.rankHistory
+            : [];
+
+        return (
+            normalizeRobloxUsername(person.rank) === normalizeRobloxUsername(action.value)
+            ||
+            history.some(entry =>
+                normalizeRobloxUsername(entry.rank) === normalizeRobloxUsername(action.value)
+            )
+        );
+
+    }
+
+    if(action.type === "medal") {
+
+        const medals = Array.isArray(person.medals)
+            ? person.medals
+            : [];
+
+        return medals.some(medal =>
+            normalizeRobloxUsername(medal.name) === normalizeRobloxUsername(action.value)
+        );
+
+    }
+
+    return false;
+
+}
+
+
+function chooseSuggestedUsername(username) {
+
+    const input = document.getElementById("quickRobloxUsername");
+
+    input.value = username;
+
+    updateQuickRecorder();
+
+}
+
+
+function updateQuickRecorder() {
+
+    const username = document
+    .getElementById("quickRobloxUsername")
+    .value
+    .trim();
+
+    const suggestionBox = document
+    .getElementById("usernameSuggestions");
+
+    const warningBox = document
+    .getElementById("quickRecordWarning");
+
+    const action = parseQuickAction();
+
+    suggestionBox.innerHTML = "";
+    warningBox.textContent = "";
+    warningBox.className = "quick-feedback";
+
+    if(username) {
+
+        const exact = findExactPersonnelByUsername(username);
+        const similar = getSimilarPersonnel(username);
+
+        if(similar.length > 0) {
+
+            suggestionBox.innerHTML = similar
+            .map(person => `
+                <button
+                    type="button"
+                    class="username-suggestion"
+                    onclick="chooseSuggestedUsername('${escapeJS(person.username)}')">
+                    <strong>@${escapeHTML(person.username)}</strong>
+                    <small>${escapeHTML(person.rank || "No rank recorded")} • ${escapeHTML(person.id || "Existing record")}</small>
+                </button>
+            `)
+            .join("");
+
+        }
+
+        if(exact && action && personAlreadyHasAction(exact, action)) {
+
+            warningBox.textContent =
+            "User already possessed the rank or award.";
+
+            warningBox.classList.add("warning");
+
+        }
+
+        else if(exact) {
+
+            warningBox.textContent =
+            "Existing profile found. The selected action will be added to this record.";
+
+        }
+
+        else if(action) {
+
+            warningBox.textContent =
+            "No exact profile found. A new profile will be created for this Roblox username.";
+
+        }
+
+    }
+
+}
+
+
+function submitQuickRecord() {
+
+    if(userRole !== "staff") {
+
+        alert("Staff access is required.");
+        return;
+
+    }
+
+    const usernameInput = document
+    .getElementById("quickRobloxUsername");
+
+    const username = usernameInput.value.trim();
+    const action = parseQuickAction();
+
+    const warningBox = document
+    .getElementById("quickRecordWarning");
+
+    warningBox.textContent = "";
+    warningBox.className = "quick-feedback";
+
+    if(!username) {
+
+        warningBox.textContent =
+        "Please enter a Roblox username.";
+
+        warningBox.classList.add("warning");
+        return;
+
+    }
+
+    if(!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
+
+        warningBox.textContent =
+        "Please check the Roblox username. Usernames should use 3–20 letters, numbers or underscores.";
+
+        warningBox.classList.add("warning");
+        return;
+
+    }
+
+    if(!action) {
+
+        warningBox.textContent =
+        "Please select a rank or medal from Input.";
+
+        warningBox.classList.add("warning");
+        return;
+
+    }
+
+    let person = findExactPersonnelByUsername(username);
+    let createdNew = false;
+
+    if(person && personAlreadyHasAction(person, action)) {
+
+        warningBox.textContent =
+        "User already possessed the rank or award.";
+
+        warningBox.classList.add("warning");
+        return;
+
+    }
+
+    if(!person) {
+
+        person = {
+            id: generatePersonnelID(),
+            name: username,
+            username: username,
+            rank: "Unranked",
+            title: "",
+            unit: "",
+            status: "Active",
+            medals: [],
+            rankHistory: []
+        };
+
+        personnel.push(person);
+        createdNew = true;
+
+    }
+
+    if(!Array.isArray(person.medals)) person.medals = [];
+    if(!Array.isArray(person.rankHistory)) person.rankHistory = [];
+
+    if(action.type === "rank") {
+
+        person.rank = action.value;
+
+        person.rankHistory.push({
+            rank: action.value,
+            date: new Date().toISOString().slice(0,10)
+        });
+
+    }
+
+    if(action.type === "medal") {
+
+        person.medals.push({
+            name: action.value,
+            grade: "",
+            date: new Date().toISOString().slice(0,10),
+            citation: "Recorded through Personnel Action Recorder."
+        });
+
+    }
+
+    addAudit(
+        (createdNew ? "Created profile and recorded " : "Recorded ")
+        + action.type
+        + " "
+        + action.value
+        + " for Roblox user "
+        + username
+    );
+
+    saveData();
+
+    selectedPerson = person.id;
+
+    renderEverything();
+    openPassport(person.id);
+
+    warningBox.textContent = createdNew
+        ? "New profile created and action recorded successfully."
+        : "Action added to the existing user profile successfully.";
+
+    warningBox.classList.add("success");
+
+    document.getElementById("quickRecordAction").value = "";
+    updateQuickRecorder();
+
+}
+
+
+/* =========================================================
    ADD PERSON
    ========================================================= */
 
@@ -3394,6 +4021,10 @@ function renderEverything() {
     renderAudit();
 
     renderStaffAccounts();
+
+    if(document.getElementById("quickRobloxUsername")) {
+        updateQuickRecorder();
+    }
 
 }
 
