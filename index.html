@@ -665,6 +665,40 @@ th {
     font-weight: bold;
 }
 
+.unit-roster-section {
+    margin-top: 28px;
+}
+
+.unit-roster-section:first-child {
+    margin-top: 0;
+}
+
+.unit-roster-section-header {
+    background: var(--cream);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    padding: 18px 20px;
+}
+
+.unit-roster-section-header h3 {
+    margin: 0;
+    color: var(--red);
+    font-size: 22px;
+    font-weight: normal;
+}
+
+.unit-roster-section-header .person-meta {
+    margin-top: 5px;
+}
+
+.unit-roster-empty {
+    background: var(--light-cream);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 30px;
+    text-align: center;
+}
+
 .audit-card {
     margin-top: 25px;
     background: var(--light-cream);
@@ -1190,7 +1224,7 @@ Enter
 </div>
 
 
-<div id="unitRosterTable" class="table-container">
+<div id="unitRosterTable">
 </div>
 
 </section>
@@ -2905,124 +2939,186 @@ function renderUnitRoster() {
     }
 
 
-    if(unitRoster.length === 0) {
-
-        panel.innerHTML = `
-
-        <div class="empty-message">
-        No regiments or units have been recorded.
-        </div>
-
-        `;
-
-        return;
-
-    }
-
-
-    const rows =
-    [...unitRoster]
+    const activeUnits =
+    unitRoster
+    .filter(unit =>
+        unit.status !== "Archived"
+    )
     .sort((a,b) =>
         String(a.title || "")
         .localeCompare(
             String(b.title || "")
         )
-    )
-    .map(unit => {
+    );
 
-        const status =
+
+    const archivedUnits =
+    unitRoster
+    .filter(unit =>
         unit.status === "Archived"
-        ? "Archived"
-        : "Active";
+    )
+    .sort((a,b) =>
+        String(a.title || "")
+        .localeCompare(
+            String(b.title || "")
+        )
+    );
+
+
+    function buildUnitRows(units) {
+
+        return units
+        .map(unit => {
+
+            const status =
+            unit.status === "Archived"
+            ? "Archived"
+            : "Active";
+
+
+            return `
+
+            <tr>
+
+                <td>
+                    <strong>
+                    ${escapeHTML(unit.title)}
+                    </strong>
+                </td>
+
+                <td>
+                    ${escapeHTML(unit.commander)}
+                </td>
+
+                <td>
+                    ${escapeHTML(unit.date || "—")}
+                </td>
+
+                <td>
+                    <span class="${
+                        status === "Active"
+                        ? "unit-status-active"
+                        : "unit-status-archived"
+                    }">
+                    ${status}
+                    </span>
+                </td>
+
+                <td>
+
+                    ${
+                        userRole === "staff"
+                        ?
+                        `
+                        <button
+                        class="unit-status-btn"
+                        type="button"
+                        title="${
+                            status === "Active"
+                            ? "Archive this regiment / unit"
+                            : "Restore this regiment / unit to Active"
+                        }"
+                        onclick="toggleUnitRosterStatus('${escapeJS(unit.id)}')">
+                        ⚙️
+                        </button>
+                        `
+                        :
+                        "—"
+                    }
+
+                </td>
+
+            </tr>
+
+            `;
+
+        })
+        .join("");
+
+    }
+
+
+    function buildUnitSection(title, description, units) {
+
+        const content =
+        units.length === 0
+        ?
+        `
+        <div class="unit-roster-empty">
+        No ${escapeHTML(title.toLowerCase())} recorded.
+        </div>
+        `
+        :
+        `
+        <div class="table-container">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>Regiment / Unit Title</th>
+
+                        <th>Commander of the Unit</th>
+
+                        <th>Record Date</th>
+
+                        <th>Status</th>
+
+                        <th>Actions</th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    ${buildUnitRows(units)}
+
+                </tbody>
+
+            </table>
+
+        </div>
+        `;
 
 
         return `
 
-        <tr>
+        <section class="unit-roster-section">
 
-            <td>
-                <strong>
-                ${escapeHTML(unit.title)}
-                </strong>
-            </td>
+            <div class="unit-roster-section-header">
 
-            <td>
-                ${escapeHTML(unit.commander)}
-            </td>
+                <h3>${escapeHTML(title)}</h3>
 
-            <td>
-                ${escapeHTML(unit.date || "—")}
-            </td>
+                <div class="person-meta">
+                ${escapeHTML(description)}
+                </div>
 
-            <td>
-                <span class="${
-                    status === "Active"
-                    ? "unit-status-active"
-                    : "unit-status-archived"
-                }">
-                ${status}
-                </span>
-            </td>
+            </div>
 
-            <td>
+            ${content}
 
-                ${
-                    userRole === "staff"
-                    ?
-                    `
-                    <button
-                    class="unit-status-btn"
-                    type="button"
-                    title="Change unit status"
-                    onclick="toggleUnitRosterStatus('${escapeJS(unit.id)}')">
-                    ⚙️
-                    </button>
-                    `
-                    :
-                    "—"
-                }
-
-            </td>
-
-        </tr>
+        </section>
 
         `;
 
-    })
-    .join("");
+    }
 
 
-    panel.innerHTML = `
-
-    <table>
-
-        <thead>
-
-            <tr>
-
-                <th>Regiment / Unit Title</th>
-
-                <th>Commander of the Unit</th>
-
-                <th>Record Date</th>
-
-                <th>Status</th>
-
-                <th>Actions</th>
-
-            </tr>
-
-        </thead>
-
-        <tbody>
-
-            ${rows}
-
-        </tbody>
-
-    </table>
-
-    `;
+    panel.innerHTML =
+    buildUnitSection(
+        "Active Regiments / Units",
+        "Currently active formations in the Imperial registry.",
+        activeUnits
+    )
+    +
+    buildUnitSection(
+        "Archived Regiments / Units",
+        "Former or inactive formations retained in the historical registry.",
+        archivedUnits
+    );
 
 }
 
