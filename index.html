@@ -1496,24 +1496,69 @@ async function staffLogin() {
     .from("staff_profiles")
     .select("id, account_name, display_name, role, active, is_founder")
     .eq("id", data.user.id)
-    .single();
+    .maybeSingle();
 
 
-    if(profileError || !profile) {
+    /*
+       FLEXIBLE STAFF LOGIN
+       --------------------
+       If a Supabase Authentication user exists but no staff_profiles row
+       has been created yet, allow that authenticated user to enter as
+       normal Staff automatically. Existing staff_profiles rows still take
+       priority, so your Founding Administrator keeps full admin access.
+    */
+
+    let resolvedProfile = profile;
+
+
+    if(profileError) {
 
         console.error(profileError);
 
         await supabaseClient.auth.signOut();
 
         message.textContent =
-        "Your login exists, but no staff profile is attached to this account.";
+        "Your account was authenticated, but the staff profile check failed.";
 
         return;
 
     }
 
 
-    if(profile.active !== true) {
+    if(!resolvedProfile) {
+
+        const emailName =
+        (data.user.email || "Staff")
+        .split("@")[0]
+        .replace(/[._-]+/g, " ")
+        .replace(/\b\w/g, character => character.toUpperCase());
+
+
+        resolvedProfile = {
+
+            id: data.user.id,
+
+            account_name:
+            (data.user.email || "staff").split("@")[0],
+
+            display_name:
+            emailName || "Staff",
+
+            role:
+            "staff",
+
+            active:
+            true,
+
+            is_founder:
+            false
+
+        };
+
+    }
+
+
+    if(resolvedProfile.active !== true) {
 
         await supabaseClient.auth.signOut();
 
@@ -1526,7 +1571,7 @@ async function staffLogin() {
 
 
     currentStaffProfile =
-    profile;
+    resolvedProfile;
 
 
     userRole =
@@ -1534,11 +1579,11 @@ async function staffLogin() {
 
 
     staffName =
-    profile.account_name;
+    resolvedProfile.account_name;
 
 
     staffRole =
-    profile.role;
+    resolvedProfile.role;
 
 
     message.textContent =
@@ -3384,10 +3429,55 @@ async function restoreStaffSession() {
     .from("staff_profiles")
     .select("id, account_name, display_name, role, active, is_founder")
     .eq("id", data.user.id)
-    .single();
+    .maybeSingle();
 
 
-    if(error || !profile || profile.active !== true) {
+    if(error) {
+
+        await supabaseClient.auth.signOut();
+
+        return;
+
+    }
+
+
+    let resolvedProfile = profile;
+
+
+    if(!resolvedProfile) {
+
+        const emailName =
+        (data.user.email || "Staff")
+        .split("@")[0]
+        .replace(/[._-]+/g, " ")
+        .replace(/\b\w/g, character => character.toUpperCase());
+
+
+        resolvedProfile = {
+
+            id: data.user.id,
+
+            account_name:
+            (data.user.email || "staff").split("@")[0],
+
+            display_name:
+            emailName || "Staff",
+
+            role:
+            "staff",
+
+            active:
+            true,
+
+            is_founder:
+            false
+
+        };
+
+    }
+
+
+    if(resolvedProfile.active !== true) {
 
         await supabaseClient.auth.signOut();
 
@@ -3397,7 +3487,7 @@ async function restoreStaffSession() {
 
 
     currentStaffProfile =
-    profile;
+    resolvedProfile;
 
 
     userRole =
@@ -3405,11 +3495,11 @@ async function restoreStaffSession() {
 
 
     staffName =
-    profile.account_name;
+    resolvedProfile.account_name;
 
 
     staffRole =
-    profile.role;
+    resolvedProfile.role;
 
 
     configurePermissions();
