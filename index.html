@@ -768,6 +768,18 @@ th {
     padding: 25px;
 }
 
+.unit-transfer-registry {
+    background: var(--light-cream);
+    border: 1px solid var(--gold);
+    padding: 30px;
+    margin-bottom: 25px;
+}
+.unit-transfer-registry h2 { margin: 6px 0 8px; }
+.unit-transfer-grid { display:grid; grid-template-columns:1fr 1fr; gap:22px; align-items:end; }
+.unit-transfer-grid label { margin-top:0; }
+.unit-transfer-current { margin-top:18px; padding:14px 16px; background:#fffdf8; border:1px solid var(--border); font-family:Arial,sans-serif; font-size:13px; }
+@media(max-width:900px){ .unit-transfer-grid { grid-template-columns:1fr; } }
+
 /* =========================================================
    QUICK PERSONNEL RECORDER
    ========================================================= */
@@ -1787,130 +1799,25 @@ The selected date and note will be stored with the rank, medal or title record.
 </div>
 
 
-<div class="admin-grid">
+<div class="unit-transfer-registry">
 
-<!-- ADD PERSON -->
+    <div class="small-title">PERSONNEL POSTING</div>
+    <h2>Unit Transfer Registry</h2>
+    <p class="quick-recorder-help">Select an existing Roblox user and transfer that personnel record from the current regiment / unit to another active formation.</p>
 
-<div class="admin-card">
+    <div class="unit-transfer-grid">
+        <label>Roblox Username
+            <select id="unitTransferPerson" onchange="updateUnitTransferRegistry()"></select>
+        </label>
+        <label>Transfer to Regiment / Unit
+            <select id="unitTransferTarget" onchange="updateUnitTransferRegistry()"></select>
+        </label>
+    </div>
 
-<h2>Add Personnel</h2>
+    <div id="unitTransferCurrent" class="unit-transfer-current"></div>
+    <div id="unitTransferMessage" class="quick-feedback"></div>
 
-<label>
-Character Name
-
-<input id="newName">
-</label>
-
-<label>
-Roblox Username
-
-<input id="newUsername">
-</label>
-
-<label>
-Roblox ID
-
-<input
-id="newRobloxId"
-type="text"
-inputmode="numeric"
-placeholder="Numeric Roblox User ID">
-</label>
-
-<label>
-Rank
-
-<input id="newRank">
-</label>
-
-<label>
-Title
-
-<input id="newTitle">
-</label>
-
-<label>
-Unit / Office
-
-<input id="newUnit">
-</label>
-
-<button
-class="primary-btn"
-onclick="addPersonnel()">
-
-Create Personnel Record
-
-</button>
-
-</div>
-
-
-<!-- AWARD MEDAL -->
-
-<div class="admin-card">
-
-<h2>Award Decoration</h2>
-
-<label>
-
-Personnel
-
-<select id="medalPerson">
-</select>
-
-</label>
-
-<label>
-
-Decoration
-
-<input
-id="medalName"
-placeholder="Order of St. George">
-
-</label>
-
-<label>
-
-Class / Grade
-
-<input
-id="medalGrade"
-placeholder="IV Class">
-
-</label>
-
-<label>
-
-Award Date
-
-<input
-id="medalDate"
-type="date">
-
-</label>
-
-<label>
-
-Citation
-
-<textarea
-id="medalCitation"
-rows="4">
-</textarea>
-
-</label>
-
-<button
-class="primary-btn"
-onclick="awardMedal()">
-
-Enter Award
-
-</button>
-
-</div>
+    <button class="primary-btn" type="button" onclick="submitUnitTransfer()">Enter Transfer</button>
 
 </div>
 
@@ -2086,6 +1993,23 @@ aria-hidden="true">
 
     </div>
 
+</div>
+
+
+<div id="usernameUpdateModal" class="registry-modal-backdrop" aria-hidden="true">
+    <div class="registry-modal">
+        <div class="small-title">PERSONNEL IDENTITY ACTION</div>
+        <h2>Update Roblox Username</h2>
+        <p id="usernameUpdateDescription">Enter the new Roblox username.</p>
+        <label>New Roblox Username
+            <input id="usernameUpdateInput" type="text" autocomplete="off" placeholder="Enter new Roblox username" onkeydown="if(event.key === 'Enter'){ confirmUsernameUpdate(); }">
+        </label>
+        <div id="usernameUpdateMessage" class="quick-feedback"></div>
+        <div class="registry-modal-actions">
+            <button class="secondary-btn" type="button" onclick="cancelUsernameUpdate()">Cancel</button>
+            <button class="primary-btn" type="button" onclick="confirmUsernameUpdate()">Enter</button>
+        </div>
+    </div>
 </div>
 
 
@@ -3823,6 +3747,14 @@ function serviceHistorySortValue(dateText) {
 
         }
 
+        if(event.type === "unit_transfer") {
+            pushServiceHistoryEvent(event.date,"Unit Transfer",event.item || "",event.reason || "");
+        }
+
+        if(event.type === "username_changed") {
+            pushServiceHistoryEvent(event.date,"Roblox Username Changed",event.item || "",event.reason || "");
+        }
+
     });
 
 
@@ -3998,6 +3930,18 @@ function serviceHistorySortValue(dateText) {
                         <strong>
                         @${escapeHTML(person.username || "")}
                         </strong>
+
+                        ${
+                            userRole === "staff"
+                            ?
+                            `
+                            <button class="secondary-btn service-save-id" type="button" onclick="openUsernameUpdate('${escapeJS(person.id)}')">
+                            Update Username
+                            </button>
+                            `
+                            :
+                            ""
+                        }
 
                     </div>
 
@@ -5918,6 +5862,91 @@ function submitQuickRecord() {
 
 
 /* =========================================================
+   UNIT TRANSFER REGISTRY
+   ========================================================= */
+function renderUnitTransferRegistry() {
+    const personSelect=document.getElementById("unitTransferPerson");
+    const targetSelect=document.getElementById("unitTransferTarget");
+    if(!personSelect || !targetSelect) return;
+    const previousPerson=personSelect.value;
+    const previousTarget=targetSelect.value;
+    personSelect.innerHTML=personnel.slice().sort((a,b)=>String(a.username||"").localeCompare(String(b.username||""))).map(person=>`<option value="${escapeHTML(person.id)}">@${escapeHTML(person.username || person.name || person.id)}</option>`).join("");
+    const activeUnits=unitRoster.filter(unit=>unit.status!=="Archived").slice().sort((a,b)=>String(a.title||"").localeCompare(String(b.title||"")));
+    targetSelect.innerHTML='<option value="">Select active regiment / unit...</option>'+activeUnits.map(unit=>`<option value="${escapeHTML(unit.title)}">${escapeHTML(unit.title)}</option>`).join("");
+    if(previousPerson && personnel.some(person=>person.id===previousPerson)) personSelect.value=previousPerson;
+    if(previousTarget && activeUnits.some(unit=>unit.title===previousTarget)) targetSelect.value=previousTarget;
+    updateUnitTransferRegistry();
+}
+
+function updateUnitTransferRegistry() {
+    const personSelect=document.getElementById("unitTransferPerson");
+    const currentBox=document.getElementById("unitTransferCurrent");
+    const message=document.getElementById("unitTransferMessage");
+    if(!personSelect || !currentBox || !message) return;
+    const person=personnel.find(item=>item.id===personSelect.value);
+    if(!person){ currentBox.textContent="No personnel selected."; message.textContent=""; message.className="quick-feedback"; return; }
+    currentBox.innerHTML="<strong>Current Regiment / Unit:</strong> "+escapeHTML(person.unit || "Unassigned");
+    message.textContent=""; message.className="quick-feedback";
+}
+
+function submitUnitTransfer() {
+    if(userRole!=="staff") return;
+    const personID=document.getElementById("unitTransferPerson").value;
+    const newUnit=document.getElementById("unitTransferTarget").value;
+    const message=document.getElementById("unitTransferMessage");
+    const person=personnel.find(item=>item.id===personID);
+    if(!person){ message.className="quick-feedback warning"; message.textContent="Please select a personnel record."; return; }
+    if(!newUnit){ message.className="quick-feedback warning"; message.textContent="Please select the destination regiment / unit."; return; }
+    const destination=unitRoster.find(unit=>unit.status!=="Archived" && normalizeRobloxUsername(unit.title)===normalizeRobloxUsername(newUnit));
+    if(!destination){ message.className="quick-feedback warning"; message.textContent="The selected destination is not an active regiment / unit."; return; }
+    const oldUnit=String(person.unit||"").trim();
+    if(oldUnit && normalizeRobloxUsername(oldUnit)===normalizeRobloxUsername(newUnit)){ message.className="quick-feedback warning"; message.textContent="User is already assigned to this regiment / unit."; return; }
+    ensureServiceCollections(person);
+    const today=getTodayISO();
+    person.unit=newUnit;
+    if(!Array.isArray(person.unitHistory)) person.unitHistory=[];
+    person.unitHistory.push({unit:newUnit,previousUnit:oldUnit||"Unassigned",date:today,reason:"Unit transfer"});
+    person.serviceEvents.push({type:"unit_transfer",date:today,item:(oldUnit||"Unassigned")+" → "+newUnit,reason:"Transferred regiment / unit"});
+    addAudit("Transferred "+person.username+" from "+(oldUnit||"Unassigned")+" to "+newUnit);
+    saveData(); selectedPerson=person.id; renderEverything(); openPassport(person.id);
+    const refreshedMessage=document.getElementById("unitTransferMessage");
+    if(refreshedMessage){ refreshedMessage.className="quick-feedback success"; refreshedMessage.textContent="Unit transfer recorded successfully."; }
+}
+
+let pendingUsernameUpdateID=null;
+function openUsernameUpdate(personID){
+    if(userRole!=="staff") return;
+    const person=personnel.find(item=>item.id===personID); if(!person) return;
+    pendingUsernameUpdateID=personID;
+    const input=document.getElementById("usernameUpdateInput");
+    const description=document.getElementById("usernameUpdateDescription");
+    const message=document.getElementById("usernameUpdateMessage");
+    input.value=person.username||"";
+    description.textContent="Current username: @"+(person.username||"")+". Enter the new Roblox username.";
+    message.textContent=""; message.className="quick-feedback";
+    const modal=document.getElementById("usernameUpdateModal"); modal.classList.add("active"); modal.setAttribute("aria-hidden","false");
+    setTimeout(()=>{input.focus();input.select();},0);
+}
+function cancelUsernameUpdate(){ pendingUsernameUpdateID=null; const modal=document.getElementById("usernameUpdateModal"); modal.classList.remove("active"); modal.setAttribute("aria-hidden","true"); }
+function confirmUsernameUpdate(){
+    if(userRole!=="staff" || !pendingUsernameUpdateID){ cancelUsernameUpdate(); return; }
+    const person=personnel.find(item=>item.id===pendingUsernameUpdateID); if(!person){cancelUsernameUpdate();return;}
+    const input=document.getElementById("usernameUpdateInput"); const message=document.getElementById("usernameUpdateMessage");
+    const oldUsername=String(person.username||"").trim(); const newUsername=String(input.value||"").trim();
+    if(!newUsername){ message.className="quick-feedback warning"; message.textContent="Roblox username cannot be empty."; return; }
+    /* Case-only changes are valid username updates.
+       Reject only when the submitted username is exactly identical,
+       including capitalization. */
+    if(oldUsername===newUsername){ message.className="quick-feedback warning"; message.textContent="Please enter a different Roblox username."; return; }
+    const duplicate=personnel.find(item=>item.id!==person.id && normalizeRobloxUsername(item.username||"")===normalizeRobloxUsername(newUsername));
+    if(duplicate){ message.className="quick-feedback warning"; message.textContent="Another personnel record already uses this Roblox username."; return; }
+    ensureServiceCollections(person); const today=getTodayISO(); person.username=newUsername;
+    person.serviceEvents.push({type:"username_changed",date:today,item:oldUsername+" → "+newUsername,reason:"Roblox username updated"});
+    addAudit("Updated Roblox username for "+person.id+" from "+oldUsername+" to "+newUsername);
+    saveData(); const personID=person.id; cancelUsernameUpdate(); renderEverything(); openPassport(personID);
+}
+
+/* =========================================================
    ADD PERSON
    ========================================================= */
 
@@ -6312,6 +6341,11 @@ function renderPersonSelector() {
     const selector =
     document
     .getElementById("medalPerson");
+
+
+    if(!selector) {
+        return;
+    }
 
 
     selector.innerHTML =
@@ -7018,6 +7052,10 @@ function renderEverything() {
 
 
     populateQuickUnitAssignment();
+
+
+
+    renderUnitTransferRegistry();
 
 }
 
