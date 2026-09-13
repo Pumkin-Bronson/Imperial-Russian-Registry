@@ -982,6 +982,46 @@ th {
     background: #fff8e9;
 }
 
+.unit-action-wrap {
+    position: relative;
+    display: inline-block;
+}
+
+.unit-action-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 50;
+    min-width: 150px;
+    background: #fffdf8;
+    border: 1px solid var(--gold);
+    box-shadow: 0 8px 22px rgba(0,0,0,.15);
+    padding: 6px;
+}
+
+.unit-action-menu.hidden {
+    display: none;
+}
+
+.unit-action-menu button {
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 9px 10px;
+    text-align: left;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+}
+
+.unit-action-menu button:hover {
+    background: #f1e6d3;
+}
+
+.unit-action-menu .archive-action {
+    color: var(--red);
+    font-weight: bold;
+}
+
 .unit-status-active {
     color: #2e6b38;
     font-weight: bold;
@@ -1982,6 +2022,64 @@ aria-hidden="true">
             type="button"
             onclick="confirmRankDemotion()">
             Confirm Demotion
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<div
+id="unitRenameModal"
+class="registry-modal-backdrop"
+aria-hidden="true">
+
+    <div class="registry-modal">
+
+        <div class="small-title">
+        REGIMENT / UNIT ACTION
+        </div>
+
+        <h2>Rename Regiment / Unit</h2>
+
+        <p id="unitRenameDescription">
+        Enter the new name for this regiment or unit.
+        </p>
+
+        <label>
+        New Regiment / Unit Name
+
+        <input
+        id="unitRenameInput"
+        type="text"
+        autocomplete="off"
+        placeholder="Enter new regiment / unit name"
+        onkeydown="if(event.key === 'Enter'){ confirmUnitRename(); }">
+
+        </label>
+
+        <div
+        id="unitRenameMessage"
+        class="quick-feedback">
+        </div>
+
+        <div class="registry-modal-actions">
+
+            <button
+            class="secondary-btn"
+            type="button"
+            onclick="cancelUnitRename()">
+            Cancel
+            </button>
+
+            <button
+            class="primary-btn"
+            type="button"
+            onclick="confirmUnitRename()">
+            Enter
             </button>
 
         </div>
@@ -4344,12 +4442,97 @@ function createUnitRosterRecord() {
 }
 
 
-function toggleUnitRosterStatus(unitID) {
+function closeAllUnitActionMenus(exceptID = null) {
+
+    document
+    .querySelectorAll(".unit-action-menu")
+    .forEach(menu => {
+
+        if(exceptID && menu.id === exceptID) {
+            return;
+        }
+
+        menu.classList.add("hidden");
+
+    });
+
+}
+
+
+function toggleUnitActionMenu(unitID) {
 
     if(userRole !== "staff") {
-
         return;
+    }
 
+    const menuID =
+    "unitActionMenu-" + unitID;
+
+    const menu =
+    document.getElementById(menuID);
+
+    if(!menu) {
+        return;
+    }
+
+    const willOpen =
+    menu.classList.contains("hidden");
+
+    closeAllUnitActionMenus(
+        willOpen ? menuID : null
+    );
+
+    if(willOpen) {
+        menu.classList.remove("hidden");
+    } else {
+        menu.classList.add("hidden");
+    }
+
+}
+
+
+function setUnitRosterStatus(unitID, newStatus) {
+
+    if(userRole !== "staff") {
+        return;
+    }
+
+    const unit =
+    unitRoster.find(item =>
+        item.id === unitID
+    );
+
+    if(!unit) {
+        return;
+    }
+
+    unit.status =
+    newStatus === "Archived"
+    ? "Archived"
+    : "Active";
+
+    addAudit(
+        "Changed regiment / unit "
+        + unit.title
+        + " status to "
+        + unit.status
+    );
+
+    saveData();
+    renderUnitRoster();
+    populateQuickUnitAssignment();
+    renderAudit();
+
+}
+
+
+let pendingUnitRename = null;
+
+
+function renameUnitRosterRecord(unitID) {
+
+    if(userRole !== "staff") {
+        return;
     }
 
 
@@ -4360,34 +4543,281 @@ function toggleUnitRosterStatus(unitID) {
 
 
     if(!unit) {
+        return;
+    }
+
+
+    pendingUnitRename = {
+        unitID: unitID,
+        originalStatus:
+        unit.status === "Archived"
+        ? "Archived"
+        : "Active"
+    };
+
+
+    const input =
+    document.getElementById("unitRenameInput");
+
+
+    const description =
+    document.getElementById("unitRenameDescription");
+
+
+    const message =
+    document.getElementById("unitRenameMessage");
+
+
+    description.textContent =
+    "Current name: "
+    +
+    String(unit.title || "")
+    +
+    ". Enter the new name for this regiment or unit.";
+
+
+    input.value =
+    String(unit.title || "");
+
+
+    message.textContent =
+    "";
+
+    message.className =
+    "quick-feedback";
+
+
+    const modal =
+    document.getElementById("unitRenameModal");
+
+
+    modal.classList.add("active");
+    modal.setAttribute("aria-hidden","false");
+
+
+    setTimeout(() => {
+
+        input.focus();
+        input.select();
+
+    }, 0);
+
+}
+
+
+function cancelUnitRename() {
+
+    pendingUnitRename =
+    null;
+
+
+    const modal =
+    document.getElementById("unitRenameModal");
+
+
+    const message =
+    document.getElementById("unitRenameMessage");
+
+
+    if(message) {
+
+        message.textContent =
+        "";
+
+        message.className =
+        "quick-feedback";
+
+    }
+
+
+    modal.classList.remove("active");
+    modal.setAttribute("aria-hidden","true");
+
+}
+
+
+function confirmUnitRename() {
+
+    if(
+        userRole !== "staff"
+        ||
+        !pendingUnitRename
+        ||
+        !pendingUnitRename.unitID
+    ) {
+
+        cancelUnitRename();
+        return;
+
+    }
+
+
+    const unit =
+    unitRoster.find(item =>
+        item.id === pendingUnitRename.unitID
+    );
+
+
+    if(!unit) {
+
+        cancelUnitRename();
+        return;
+
+    }
+
+
+    const input =
+    document.getElementById("unitRenameInput");
+
+
+    const message =
+    document.getElementById("unitRenameMessage");
+
+
+    const oldTitle =
+    String(unit.title || "").trim();
+
+
+    const newTitle =
+    String(input.value || "").trim();
+
+
+    if(!newTitle) {
+
+        message.className =
+        "quick-feedback warning";
+
+        message.textContent =
+        "The Regiment / Unit name cannot be empty.";
 
         return;
 
     }
 
 
+    if(
+        normalizeRobloxUsername(newTitle)
+        ===
+        normalizeRobloxUsername(oldTitle)
+    ) {
+
+        message.className =
+        "quick-feedback warning";
+
+        message.textContent =
+        "Please enter a different name.";
+
+        return;
+
+    }
+
+
+    const duplicate =
+    unitRoster.find(item =>
+        item.id !== unit.id
+        &&
+        normalizeRobloxUsername(item.title)
+        ===
+        normalizeRobloxUsername(newTitle)
+    );
+
+
+    if(duplicate) {
+
+        message.className =
+        "quick-feedback warning";
+
+        message.textContent =
+        "Another regiment / unit already uses that name.";
+
+        return;
+
+    }
+
+
+    /*
+       Keep current personnel assignments linked after renaming.
+    */
+    personnel.forEach(person => {
+
+        if(
+            normalizeRobloxUsername(person.unit || "")
+            ===
+            normalizeRobloxUsername(oldTitle)
+        ) {
+
+            person.unit =
+            newTitle;
+
+        }
+
+
+        if(Array.isArray(person.unitHistory)) {
+
+            person.unitHistory.forEach(entry => {
+
+                if(
+                    normalizeRobloxUsername(entry.unit || "")
+                    ===
+                    normalizeRobloxUsername(oldTitle)
+                ) {
+
+                    entry.unit =
+                    newTitle;
+
+                }
+
+            });
+
+        }
+
+    });
+
+
+    /*
+       Rename changes ONLY the unit title.
+       Its Active / Archived state must remain exactly as it was before
+       the rename. In particular, an Archived formation stays Archived
+       and is not recreated in the Active roster.
+    */
+    const preservedStatus =
+    pendingUnitRename.originalStatus === "Archived"
+    ? "Archived"
+    : "Active";
+
+
+    unit.title =
+    newTitle;
+
     unit.status =
-    unit.status === "Archived"
-    ? "Active"
-    : "Archived";
+    preservedStatus;
 
 
     addAudit(
-        "Changed regiment / unit "
+        "Renamed regiment / unit "
         +
-        unit.title
+        oldTitle
         +
-        " status to "
+        " to "
         +
-        unit.status
+        newTitle
+        +
+        " (status remains "
+        +
+        preservedStatus
+        +
+        ")"
     );
 
 
     saveData();
 
-    renderUnitRoster();
 
-    renderAudit();
+    cancelUnitRename();
+
+    renderEverything();
+
+    populateQuickUnitAssignment();
 
 }
 
@@ -4477,17 +4907,50 @@ function renderUnitRoster() {
                         userRole === "staff"
                         ?
                         `
-                        <button
-                        class="unit-status-btn"
-                        type="button"
-                        title="${
-                            status === "Active"
-                            ? "Archive this regiment / unit"
-                            : "Restore this regiment / unit to Active"
-                        }"
-                        onclick="toggleUnitRosterStatus('${escapeJS(unit.id)}')">
-                        ⚙️
-                        </button>
+                        <div class="unit-action-wrap">
+
+                            <button
+                            class="unit-status-btn"
+                            type="button"
+                            title="Regiment / Unit actions"
+                            onclick="toggleUnitActionMenu('${escapeJS(unit.id)}')">
+                            ⚙️
+                            </button>
+
+                            <div
+                            id="unitActionMenu-${escapeHTML(unit.id)}"
+                            class="unit-action-menu hidden">
+
+                                ${
+                                    status === "Active"
+                                    ?
+                                    `
+                                    <button
+                                    class="archive-action"
+                                    type="button"
+                                    onclick="setUnitRosterStatus('${escapeJS(unit.id)}','Archived')">
+                                    Archive
+                                    </button>
+                                    `
+                                    :
+                                    `
+                                    <button
+                                    type="button"
+                                    onclick="setUnitRosterStatus('${escapeJS(unit.id)}','Active')">
+                                    Restore to Active
+                                    </button>
+                                    `
+                                }
+
+                                <button
+                                type="button"
+                                onclick="renameUnitRosterRecord('${escapeJS(unit.id)}')">
+                                Rename
+                                </button>
+
+                            </div>
+
+                        </div>
                         `
                         :
                         "—"
@@ -6675,6 +7138,37 @@ async function restoreStaffSession() {
 renderEverything();
 
 restoreStaffSession();
+
+
+document.addEventListener("click", event => {
+
+    if(!event.target.closest(".unit-action-wrap")) {
+        closeAllUnitActionMenus();
+    }
+
+});
+
+
+
+document.addEventListener("click", event => {
+
+    const modal =
+    document.getElementById("unitRenameModal");
+
+    if(
+        modal
+        &&
+        modal.classList.contains("active")
+        &&
+        event.target === modal
+    ) {
+
+        cancelUnitRename();
+
+    }
+
+});
+
 
 </script>
 
