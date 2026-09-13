@@ -4461,6 +4461,36 @@ function parseQuickAction() {
 }
 
 
+function personCurrentlyHasRank(person) {
+
+    if(!person) {
+
+        return false;
+
+    }
+
+
+    const currentRank =
+    String(person.rank || "")
+    .trim();
+
+
+    if(!currentRank) {
+
+        return false;
+
+    }
+
+
+    return (
+        normalizeRobloxUsername(currentRank)
+        !==
+        normalizeRobloxUsername("Unranked")
+    );
+
+}
+
+
 function personAlreadyHasAction(person, action) {
 
     if(!person || !action) return false;
@@ -4796,10 +4826,27 @@ function updateQuickRecorder() {
 
         }
 
-        if(exact && action && personAlreadyHasAction(exact, action)) {
+        if(
+            exact
+            &&
+            action
+            &&
+            action.type === "rank"
+            &&
+            personCurrentlyHasRank(exact)
+        ) {
 
             warningBox.textContent =
-            "User already possessed the rank, award or title.";
+            "User has already possessed a rank";
+
+            warningBox.classList.add("warning");
+
+        }
+
+        else if(exact && action && personAlreadyHasAction(exact, action)) {
+
+            warningBox.textContent =
+            "User already possessed the award or title.";
 
             warningBox.classList.add("warning");
 
@@ -4926,10 +4973,32 @@ function submitQuickRecord() {
     let person = findExactPersonnelByUsername(username);
     let createdNew = false;
 
+    /*
+       A personnel profile may possess only ONE current rank.
+       If an existing profile is already ranked, the Quick Action
+       Recorder must not overwrite that rank with another rank.
+    */
+    if(
+        person
+        &&
+        action.type === "rank"
+        &&
+        personCurrentlyHasRank(person)
+    ) {
+
+        warningBox.textContent =
+        "User has already possessed a rank";
+
+        warningBox.classList.add("warning");
+        return;
+
+    }
+
+
     if(person && personAlreadyHasAction(person, action)) {
 
         warningBox.textContent =
-        "User already possessed the rank, award or title.";
+        "User already possessed the award or title.";
 
         warningBox.classList.add("warning");
         return;
