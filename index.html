@@ -646,6 +646,56 @@ main {
     margin-top: 8px;
 }
 
+/* =========================================================
+   RANK DEMOTION DIALOG
+   ========================================================= */
+
+.registry-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(20,16,12,.55);
+}
+
+.registry-modal-backdrop.active {
+    display: flex;
+}
+
+.registry-modal {
+    width: min(520px, 100%);
+    background: var(--light-cream);
+    border: 2px solid var(--gold);
+    box-shadow: 0 24px 70px rgba(0,0,0,.28);
+    padding: 28px;
+}
+
+.registry-modal h2 {
+    margin: 0 0 10px;
+    font-weight: normal;
+}
+
+.registry-modal p {
+    margin: 0 0 18px;
+    color: var(--muted);
+    font-family: Arial, sans-serif;
+    line-height: 1.5;
+}
+
+.registry-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.registry-modal select {
+    margin-top: 8px;
+}
+
 @media(max-width:1050px) {
     .service-record-layout {
         grid-template-columns: 1fr;
@@ -1892,6 +1942,55 @@ Create Staff Account
 </section>
 
 
+<div
+id="rankDemotionModal"
+class="registry-modal-backdrop"
+aria-hidden="true">
+
+    <div class="registry-modal">
+
+        <div class="small-title">
+        PERSONNEL RANK ACTION
+        </div>
+
+        <h2>Select Demoted Rank</h2>
+
+        <p id="rankDemotionDescription">
+        Choose the new rank following demotion.
+        Only ranks below the current rank are available.
+        </p>
+
+        <label>
+        New Rank
+
+        <select id="rankDemotionSelect">
+        </select>
+
+        </label>
+
+        <div class="registry-modal-actions">
+
+            <button
+            class="secondary-btn"
+            type="button"
+            onclick="cancelRankDemotion()">
+            Cancel
+            </button>
+
+            <button
+            class="primary-btn"
+            type="button"
+            onclick="confirmRankDemotion()">
+            Confirm Demotion
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
 <script>
 
 /* =========================================================
@@ -2855,6 +2954,72 @@ function savePassportRobloxId(personID) {
 }
 
 
+let pendingRankDemotion = null;
+
+
+function getRankHierarchyIndex(rank) {
+
+    const value =
+    normalizeRobloxUsername(rank);
+
+
+    const directIndex =
+    QUICK_RANKS.findIndex(item =>
+        normalizeRobloxUsername(item) === value
+    );
+
+
+    if(directIndex !== -1) {
+
+        return directIndex;
+
+    }
+
+
+    /*
+       Compatibility with older prototype records that used
+       English-language rank names before the Russian rank list
+       was introduced.
+    */
+
+    const legacyAliases = {
+        "field marshal": "General-Feld'marshal",
+        "lieutenant general": "General-Leytenant",
+        "major general": "General-Mayor",
+        "colonel": "Polkovnik",
+        "lieutenant colonel": "Podpolkovnik",
+        "major": "Mayor",
+        "captain": "Kapitan",
+        "staff captain": "Shtabs-Kapitan",
+        "lieutenant": "Poruchik",
+        "second lieutenant": "Podporuchik",
+        "ensign": "Praporschik",
+        "sergeant major": "Feld'febel'",
+        "private": "Mladshiy Ryadovoy",
+        "recruit": "Rekrut"
+    };
+
+
+    const mapped =
+    legacyAliases[value];
+
+
+    if(!mapped) {
+
+        return -1;
+
+    }
+
+
+    return QUICK_RANKS.findIndex(item =>
+        normalizeRobloxUsername(item)
+        ===
+        normalizeRobloxUsername(mapped)
+    );
+
+}
+
+
 function removeCurrentRank(personID) {
 
     if(userRole !== "staff") {
@@ -2874,6 +3039,28 @@ function removeCurrentRank(personID) {
     ensureServiceCollections(person);
 
 
+    const currentRank =
+    String(person.rank || "").trim();
+
+
+    if(
+        !currentRank
+        ||
+        normalizeRobloxUsername(currentRank)
+        ===
+        normalizeRobloxUsername("Unranked")
+        ||
+        normalizeRobloxUsername(currentRank)
+        ===
+        normalizeRobloxUsername("None")
+    ) {
+
+        alert("This user does not currently possess a rank.");
+        return;
+
+    }
+
+
     const reason =
     prompt(
         "Enter the reason for the demotion / removal of the current rank:"
@@ -2891,38 +3078,159 @@ function removeCurrentRank(personID) {
     }
 
 
-    const currentRank =
-    person.rank || "Unranked";
+    const currentIndex =
+    getRankHierarchyIndex(currentRank);
 
 
-    const previousEntries =
-    person.rankHistory
-    .filter(entry =>
-        entry
-        &&
-        entry.rank
-        &&
-        entry.rank !== currentRank
+    let lowerRanks = [];
+
+
+    if(currentIndex !== -1) {
+
+        lowerRanks =
+        QUICK_RANKS.slice(currentIndex + 1);
+
+    }
+
+
+    /*
+       If an old/custom rank cannot be matched to the hierarchy,
+       do not guess which ranks are below it. Staff may still choose None.
+    */
+
+    const select =
+    document.getElementById("rankDemotionSelect");
+
+
+    select.innerHTML =
+    '<option value="None">None</option>'
+    +
+    lowerRanks
+    .map(rank =>
+        `<option value="${escapeHTML(rank)}">${escapeHTML(rank)}</option>`
+    )
+    .join("");
+
+
+    pendingRankDemotion = {
+        personID: personID,
+        currentRank: currentRank,
+        reason: reason.trim()
+    };
+
+
+    const description =
+    document.getElementById("rankDemotionDescription");
+
+
+    description.textContent =
+    currentIndex === -1
+    ?
+    "The current rank is not part of the standard hierarchy. Only None is available."
+    :
+    "Choose a rank below "
+    + currentRank
+    + ", or select None to remove rank status entirely.";
+
+
+    const modal =
+    document.getElementById("rankDemotionModal");
+
+
+    modal.classList.add("active");
+    modal.setAttribute("aria-hidden","false");
+
+}
+
+
+function cancelRankDemotion() {
+
+    pendingRankDemotion = null;
+
+
+    const modal =
+    document.getElementById("rankDemotionModal");
+
+
+    modal.classList.remove("active");
+    modal.setAttribute("aria-hidden","true");
+
+}
+
+
+function confirmRankDemotion() {
+
+    if(
+        userRole !== "staff"
+        ||
+        !pendingRankDemotion
+    ) {
+
+        cancelRankDemotion();
+        return;
+
+    }
+
+
+    const person =
+    personnel.find(
+        p => p.id === pendingRankDemotion.personID
     );
 
 
-    const previousRank =
-    previousEntries.length
-    ? previousEntries[previousEntries.length - 1].rank
-    : "Unranked";
+    if(!person) {
+
+        cancelRankDemotion();
+        return;
+
+    }
+
+
+    const selectedRank =
+    document
+    .getElementById("rankDemotionSelect")
+    .value;
+
+
+    const today =
+    getTodayISO();
+
+
+    const formerRank =
+    pendingRankDemotion.currentRank;
+
+
+    const reason =
+    pendingRankDemotion.reason;
 
 
     person.serviceEvents.push({
         type: "rank_removed",
-        date: getTodayISO(),
-        item: currentRank,
-        replacement: previousRank,
-        reason: reason.trim()
+        date: today,
+        item: formerRank,
+        replacement: selectedRank,
+        reason: reason
     });
 
 
     person.rank =
-    previousRank;
+    selectedRank;
+
+
+    /*
+       Add the selected lower rank to rank history when a rank is chosen.
+       "None" is not a rank, so it is not added to rankHistory.
+    */
+
+    if(selectedRank !== "None") {
+
+        person.rankHistory.push({
+            rank: selectedRank,
+            date: today,
+            reason: "Demoted from " + formerRank + ": " + reason
+        });
+
+    }
 
 
     addAudit(
@@ -2932,21 +3240,28 @@ function removeCurrentRank(personID) {
         +
         " from "
         +
-        currentRank
+        formerRank
         +
         " to "
         +
-        previousRank
+        selectedRank
         +
         " — "
         +
-        reason.trim()
+        reason
     );
 
 
     saveData();
 
     renderEverything();
+
+
+    const personID =
+    person.id;
+
+
+    cancelRankDemotion();
 
     openPassport(personID);
 
@@ -2966,7 +3281,15 @@ function removeCurrentTitle(personID) {
     personnel.find(p => p.id === personID);
 
 
-    if(!person || !person.title) return;
+    if(
+        !person
+        ||
+        !person.title
+        ||
+        normalizeRobloxUsername(person.title)
+        ===
+        normalizeRobloxUsername("None")
+    ) return;
 
 
     ensureServiceCollections(person);
@@ -3002,7 +3325,7 @@ function removeCurrentTitle(personID) {
 
 
     person.title =
-    "";
+    "None";
 
 
     addAudit(
@@ -3676,6 +3999,10 @@ function serviceHistorySortValue(dateText) {
                         userRole === "staff"
                         &&
                         person.title
+                        &&
+                        normalizeRobloxUsername(person.title)
+                        !==
+                        normalizeRobloxUsername("None")
                         ?
                         `
                         <button
@@ -4486,6 +4813,10 @@ function personCurrentlyHasRank(person) {
         normalizeRobloxUsername(currentRank)
         !==
         normalizeRobloxUsername("Unranked")
+        &&
+        normalizeRobloxUsername(currentRank)
+        !==
+        normalizeRobloxUsername("None")
     );
 
 }
