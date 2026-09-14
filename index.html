@@ -805,6 +805,73 @@ th {
 .unit-transfer-current { margin-top:18px; padding:14px 16px; background:#fffdf8; border:1px solid var(--border); font-family:Arial,sans-serif; font-size:13px; }
 @media(max-width:900px){ .unit-transfer-grid { grid-template-columns:1fr; } }
 
+.record-box-header {
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:18px;
+}
+
+.performance-toggle {
+    flex:0 0 auto;
+    width:22px;
+    height:22px;
+    border:2px solid #424750;
+    border-radius:50%;
+    background:transparent;
+    padding:0;
+    margin-top:2px;
+    position:relative;
+}
+
+.performance-toggle.active::after {
+    content:"";
+    position:absolute;
+    inset:4px;
+    border-radius:50%;
+    background:var(--red);
+}
+
+.performance-toggle:hover {
+    border-color:var(--gold);
+}
+
+.performance-panel {
+    margin-top:18px;
+    padding:16px;
+    border:1px solid var(--border);
+    background:#fffdf8;
+}
+
+.performance-panel textarea {
+    min-height:96px;
+    resize:vertical;
+}
+
+.campaign-record-registry {
+    background:var(--light-cream);
+    border:1px solid var(--gold);
+    padding:30px;
+    margin-bottom:25px;
+}
+
+.campaign-record-grid {
+    display:grid;
+    grid-template-columns:minmax(220px,.8fr) minmax(300px,1.2fr) minmax(180px,.6fr);
+    gap:18px;
+    align-items:end;
+}
+
+.campaign-record-grid label {
+    margin-top:0;
+}
+
+@media(max-width:900px) {
+    .campaign-record-grid {
+        grid-template-columns:1fr;
+    }
+}
+
 /* =========================================================
    QUICK PERSONNEL RECORDER
    ========================================================= */
@@ -1697,7 +1764,7 @@ REGISTRY ADMINISTRATION
 <h2>Personnel Action Recorder</h2>
 
 <p class="quick-recorder-help">
-Enter a Roblox username and select a rank, medal, title or campaign action. If the username already exists,
+Enter a Roblox username and select a rank, medal or title. If the username already exists,
 the action is added to that profile. Otherwise a new profile is created automatically.
 </p>
 
@@ -1789,29 +1856,7 @@ Input
 <option value="medal::Medal in Honour of the Distinguished Soldier of 1806">Medal in Honour of the Distinguished Soldier of 1806</option>
 </optgroup>
 
-<optgroup label="Campaign">
-<option value="campaign::manual">Enter Participated Campaign</option>
-</optgroup>
-
 </select>
-
-<div
-id="quickCampaignNameBox"
-class="quick-campaign-name-box hidden">
-
-<label>
-Campaign Name
-
-<input
-id="quickCampaignName"
-type="text"
-autocomplete="off"
-placeholder="Enter the name of the participated campaign..."
-oninput="updateQuickRecorder()">
-
-</label>
-
-</div>
 
 <div id="quickRecordWarning" class="quick-feedback"></div>
 </label>
@@ -1872,33 +1917,136 @@ Set Date to Today
 </div>
 
 <div class="quick-note-help">
-The selected date and note will be stored with the rank, medal, title or campaign record.
+The selected date and note will be stored with the rank, medal or title record.
 </div>
 
 </div>
 
 </div>
+
 
 
 <div class="unit-transfer-registry">
 
-    <div class="small-title">PERSONNEL POSTING</div>
-    <h2>Unit Transfer Registry</h2>
-    <p class="quick-recorder-help">Select an existing Roblox user and transfer that personnel record from the current regiment / unit to another active formation.</p>
+    <div class="record-box-header">
+        <div>
+            <div class="small-title">PERSONNEL POSTING</div>
+            <h2>Regiment / Unit Record</h2>
+            <p class="quick-recorder-help">
+            Select an existing Roblox user and transfer that personnel record from the current regiment / unit to another active formation.
+            </p>
+        </div>
+
+        <button
+        id="unitPerformanceToggle"
+        class="performance-toggle"
+        type="button"
+        title="Include Performance"
+        aria-label="Include Performance"
+        aria-pressed="false"
+        onclick="toggleRecordPerformance('unit')">
+        </button>
+    </div>
 
     <div class="unit-transfer-grid">
-        <label>Roblox Username
-            <select id="unitTransferPerson" onchange="updateUnitTransferRegistry()"></select>
+        <label>
+        Roblox Username
+        <select id="unitTransferPerson" onchange="updateUnitTransferRegistry()"></select>
         </label>
-        <label>Transfer to Regiment / Unit
-            <select id="unitTransferTarget" onchange="updateUnitTransferRegistry()"></select>
+
+        <label>
+        Transfer to Regiment / Unit
+        <select id="unitTransferTarget" onchange="updateUnitTransferRegistry()"></select>
         </label>
     </div>
 
     <div id="unitTransferCurrent" class="unit-transfer-current"></div>
+
+    <div id="unitPerformancePanel" class="performance-panel hidden">
+        <label>
+        Performance
+        <textarea
+        id="unitPerformanceText"
+        rows="4"
+        placeholder="Enter the person's performance during service with this regiment / unit..."></textarea>
+        </label>
+    </div>
+
     <div id="unitTransferMessage" class="quick-feedback"></div>
 
-    <button class="primary-btn" type="button" onclick="submitUnitTransfer()">Enter Transfer</button>
+    <button class="primary-btn" type="button" onclick="submitUnitTransfer()">
+    Enter Transfer
+    </button>
+
+</div>
+
+
+<div class="campaign-record-registry">
+
+    <div class="record-box-header">
+        <div>
+            <div class="small-title">CAMPAIGN SERVICE ENTRY</div>
+            <h2>Campaign Record</h2>
+            <p class="quick-recorder-help">
+            Select an existing Roblox user, manually enter the campaign name and record the date of participation.
+            </p>
+        </div>
+
+        <button
+        id="campaignPerformanceToggle"
+        class="performance-toggle"
+        type="button"
+        title="Include Performance"
+        aria-label="Include Performance"
+        aria-pressed="false"
+        onclick="toggleRecordPerformance('campaign')">
+        </button>
+    </div>
+
+    <div class="campaign-record-grid">
+        <label>
+        Roblox Username
+        <select id="campaignRecordPerson"></select>
+        </label>
+
+        <label>
+        Campaign Name
+        <input
+        id="campaignRecordName"
+        type="text"
+        autocomplete="off"
+        placeholder="Enter campaign name">
+        </label>
+
+        <label>
+        Record Date
+        <input id="campaignRecordDate" type="date">
+        </label>
+    </div>
+
+    <button
+    class="secondary-btn"
+    type="button"
+    style="margin-top:14px;"
+    onclick="setCampaignRecordDateToday()">
+    Set Date to Today
+    </button>
+
+    <div id="campaignPerformancePanel" class="performance-panel hidden">
+        <label>
+        Performance
+        <textarea
+        id="campaignPerformanceText"
+        rows="4"
+        placeholder="Enter the person's performance during this campaign..."></textarea>
+        </label>
+    </div>
+
+    <div id="campaignRecordMessage" class="quick-feedback"></div>
+
+    <button class="primary-btn" type="button" onclick="submitCampaignRecord()">
+    Enter Campaign Record
+    </button>
 
 </div>
 
@@ -4088,7 +4236,10 @@ function serviceHistorySortValue(dateText) {
             entry.date,
             "Campaign",
             entry.campaign || entry.name || "",
-            entry.reason || entry.note || ""
+            entry.reason || entry.note || "",
+            entry.performance
+            ? "Performance: " + entry.performance
+            : ""
         );
 
     });
@@ -4145,7 +4296,15 @@ function serviceHistorySortValue(dateText) {
         }
 
         if(event.type === "unit_transfer") {
-            pushServiceHistoryEvent(event.date,"Unit Transfer",event.item || "",event.reason || "");
+            pushServiceHistoryEvent(
+                event.date,
+                "Unit Transfer",
+                event.item || "",
+                event.reason || "",
+                event.performance
+                ? "Performance: " + event.performance
+                : ""
+            );
         }
 
         if(event.type === "username_changed") {
@@ -5950,44 +6109,7 @@ function updateQuickRecorder() {
     const warningBox = document
     .getElementById("quickRecordWarning");
 
-    let action = parseQuickAction();
-
-    const campaignBox =
-    document.getElementById("quickCampaignNameBox");
-
-    const campaignInput =
-    document.getElementById("quickCampaignName");
-
-
-    const campaignMode =
-    action
-    &&
-    action.type === "campaign";
-
-
-    if(campaignBox) {
-
-        campaignBox.classList.toggle(
-            "hidden",
-            !campaignMode
-        );
-
-    }
-
-
-    if(
-        campaignMode
-        &&
-        campaignInput
-    ) {
-
-        action = {
-            type: "campaign",
-            value: campaignInput.value.trim()
-        };
-
-    }
-
+    const action = parseQuickAction();
 
     suggestionBox.innerHTML = "";
     warningBox.textContent = "";
@@ -6116,29 +6238,7 @@ function submitQuickRecord() {
 
     const username = usernameInput.value.trim();
 
-    let action = parseQuickAction();
-
-
-    if(
-        action
-        &&
-        action.type === "campaign"
-    ) {
-
-        const campaignName =
-        document
-        .getElementById("quickCampaignName")
-        .value
-        .trim();
-
-
-        action = {
-            type: "campaign",
-            value: campaignName
-        };
-
-    }
-
+    const action = parseQuickAction();
 
     const note = document
     .getElementById("quickRecordNote")
@@ -6182,7 +6282,7 @@ function submitQuickRecord() {
     if(!action) {
 
         warningBox.textContent =
-        "Please select a rank, medal, title or campaign action from Input.";
+        "Please select a rank, medal or title from Input.";
 
         warningBox.classList.add("warning");
         return;
@@ -6190,19 +6290,6 @@ function submitQuickRecord() {
     }
 
 
-    if(
-        action.type === "campaign"
-        &&
-        !action.value
-    ) {
-
-        warningBox.textContent =
-        "Please enter the name of the participated campaign.";
-
-        warningBox.classList.add("warning");
-        return;
-
-    }
 
 
     if(unitEvaluation.blocked) {
@@ -6333,15 +6420,6 @@ function submitQuickRecord() {
     }
 
 
-    if(action.type === "campaign") {
-
-        person.campaignHistory.push({
-            campaign: action.value,
-            date: recordDate,
-            reason: note
-        });
-
-    }
 
 
     addAudit(
@@ -6375,22 +6453,6 @@ function submitQuickRecord() {
     warningBox.classList.add("success");
 
 
-    /*
-       Keep "Enter Participated Campaign" selected after submission,
-       but clear the previous campaign name so the next campaign can
-       be entered manually without accidentally duplicating the old name.
-    */
-    if(
-        action.type === "campaign"
-        &&
-        document.getElementById("quickCampaignName")
-    ) {
-
-        document
-        .getElementById("quickCampaignName")
-        .value = "";
-
-    }
 
 
     /*
@@ -6398,6 +6460,238 @@ function submitQuickRecord() {
        need to re-select it for the next record.
     */
     updateQuickRecorder();
+
+}
+
+
+/* =========================================================
+   OPTIONAL PERFORMANCE
+   ========================================================= */
+
+function toggleRecordPerformance(kind) {
+
+    const campaignMode =
+    kind === "campaign";
+
+    const toggle =
+    document.getElementById(
+        campaignMode
+        ? "campaignPerformanceToggle"
+        : "unitPerformanceToggle"
+    );
+
+    const panel =
+    document.getElementById(
+        campaignMode
+        ? "campaignPerformancePanel"
+        : "unitPerformancePanel"
+    );
+
+    const input =
+    document.getElementById(
+        campaignMode
+        ? "campaignPerformanceText"
+        : "unitPerformanceText"
+    );
+
+    if(!toggle || !panel || !input) {
+        return;
+    }
+
+    const enabled =
+    !toggle.classList.contains("active");
+
+    toggle.classList.toggle("active", enabled);
+    toggle.setAttribute("aria-pressed", enabled ? "true" : "false");
+    panel.classList.toggle("hidden", !enabled);
+
+    if(!enabled) {
+        input.value = "";
+    } else {
+        setTimeout(() => input.focus(), 0);
+    }
+
+}
+
+
+function isRecordPerformanceEnabled(kind) {
+
+    const toggle =
+    document.getElementById(
+        kind === "campaign"
+        ? "campaignPerformanceToggle"
+        : "unitPerformanceToggle"
+    );
+
+    return Boolean(
+        toggle
+        &&
+        toggle.classList.contains("active")
+    );
+
+}
+
+
+/* =========================================================
+   CAMPAIGN RECORD
+   ========================================================= */
+
+function renderCampaignRecordRegistry() {
+
+    const select =
+    document.getElementById("campaignRecordPerson");
+
+    if(!select) {
+        return;
+    }
+
+    const previous =
+    select.value;
+
+    select.innerHTML =
+    personnel
+    .slice()
+    .sort((a,b) =>
+        String(a.username || "")
+        .localeCompare(String(b.username || ""))
+    )
+    .map(person => `
+        <option value="${escapeHTML(person.id)}">
+        @${escapeHTML(person.username || person.name || person.id)}
+        </option>
+    `)
+    .join("");
+
+    if(
+        previous
+        &&
+        personnel.some(person =>
+            person.id === previous
+        )
+    ) {
+        select.value = previous;
+    }
+
+}
+
+
+function setCampaignRecordDateToday() {
+
+    const field =
+    document.getElementById("campaignRecordDate");
+
+    if(field) {
+        field.value =
+        new Date().toISOString().slice(0,10);
+    }
+
+}
+
+
+function submitCampaignRecord() {
+
+    if(userRole !== "staff") {
+        return;
+    }
+
+    const personID =
+    document.getElementById("campaignRecordPerson").value;
+
+    const campaignName =
+    document.getElementById("campaignRecordName").value.trim();
+
+    const recordDate =
+    document.getElementById("campaignRecordDate").value
+    ||
+    getTodayISO();
+
+    const performance =
+    isRecordPerformanceEnabled("campaign")
+    ?
+    document.getElementById("campaignPerformanceText").value.trim()
+    :
+    "";
+
+    const message =
+    document.getElementById("campaignRecordMessage");
+
+    const person =
+    personnel.find(item =>
+        item.id === personID
+    );
+
+    if(!person) {
+        message.className = "quick-feedback warning";
+        message.textContent = "Please select a personnel record.";
+        return;
+    }
+
+    if(!campaignName) {
+        message.className = "quick-feedback warning";
+        message.textContent = "Please enter the campaign name.";
+        return;
+    }
+
+    ensureServiceCollections(person);
+
+    const duplicate =
+    person.campaignHistory.some(entry =>
+        normalizeRobloxUsername(entry.campaign || entry.name || "")
+        ===
+        normalizeRobloxUsername(campaignName)
+    );
+
+    if(duplicate) {
+        message.className = "quick-feedback warning";
+        message.textContent = "User has already recorded participation in this campaign.";
+        return;
+    }
+
+    person.campaignHistory.push({
+        campaign: campaignName,
+        date: recordDate,
+        reason: "",
+        performance: performance
+    });
+
+    addAudit(
+        "Recorded campaign participation "
+        +
+        campaignName
+        +
+        " for "
+        +
+        person.username
+        +
+        " on "
+        +
+        recordDate
+        +
+        (
+            performance
+            ? " — Performance: " + performance
+            : ""
+        )
+    );
+
+    saveData();
+
+    selectedPerson =
+    person.id;
+
+    renderEverything();
+
+    openPassport(person.id);
+
+    document.getElementById("campaignRecordName").value = "";
+    document.getElementById("campaignRecordDate").value = "";
+
+    if(document.getElementById("campaignPerformanceText")) {
+        document.getElementById("campaignPerformanceText").value = "";
+    }
+
+    message.className = "quick-feedback success";
+    message.textContent = "Campaign participation recorded successfully.";
 
 }
 
@@ -6442,6 +6736,14 @@ function submitUnitTransfer() {
     if(!destination){ message.className="quick-feedback warning"; message.textContent="The selected destination is not an active regiment / unit."; return; }
     const oldUnit=String(person.unit||"").trim();
     if(oldUnit && normalizeRobloxUsername(oldUnit)===normalizeRobloxUsername(newUnit)){ message.className="quick-feedback warning"; message.textContent="User is already assigned to this regiment / unit."; return; }
+
+    const performance =
+    isRecordPerformanceEnabled("unit")
+    ?
+    String(document.getElementById("unitPerformanceText").value || "").trim()
+    :
+    "";
+
     ensureServiceCollections(person);
     const today=getTodayISO();
     person.unit=newUnit;
@@ -7667,6 +7969,8 @@ function renderEverything() {
     populateQuickUnitAssignment();
 
     renderUnitTransferRegistry();
+
+    renderCampaignRecordRegistry();
 
 }
 
