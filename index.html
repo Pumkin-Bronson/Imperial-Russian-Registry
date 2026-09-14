@@ -326,13 +326,14 @@ main {
 }
 
 .personnel-result-count {
-    margin-top: 9px;
-    text-align: right;
+    margin: 0 0 10px;
+    text-align: left;
     color: var(--red);
     font-family: Arial, sans-serif;
-    font-size: 12px;
-    font-weight: bold;
-    letter-spacing: .2px;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
 }
 
 @media(max-width:900px) {
@@ -1597,6 +1598,13 @@ CENTRAL REGISTER
 
 </div>
 
+<div
+id="personnelResultCount"
+class="personnel-result-count staff-only hidden"
+aria-live="polite">
+0 MATCHED RESULTS
+</div>
+
 <div class="personnel-search-controls">
 
 <select
@@ -1621,13 +1629,6 @@ class="search-box"
 placeholder="Enter Roblox Username..."
 oninput="renderPersonnel()">
 
-</div>
-
-<div
-id="personnelResultCount"
-class="personnel-result-count staff-only hidden"
-aria-live="polite">
-0 matched results
 </div>
 
 </div>
@@ -3276,8 +3277,8 @@ function renderPersonnel() {
         +
         (
             count === 1
-            ? " matched result"
-            : " matched results"
+            ? " MATCHED RESULT"
+            : " MATCHED RESULTS"
         );
 
     }
