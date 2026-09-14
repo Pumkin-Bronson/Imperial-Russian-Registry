@@ -2681,77 +2681,116 @@ function saveData() {
 
 function getPersonnelSearchOptions(category) {
 
-    const unique =
-    values =>
-    [...new Set(
-        values
-        .map(value => String(value || "").trim())
-        .filter(Boolean)
-    )]
-    .sort((a,b) => a.localeCompare(b));
+    /*
+       Personnel search dropdowns follow the registry's DEFAULT order.
+       They are deliberately NOT sorted alphabetically.
 
+       Username  -> order of personnel in the registry
+       Rank      -> order defined in Personnel Action Recorder
+       Medal     -> order defined in Personnel Action Recorder
+       Title     -> order defined in Personnel Action Recorder
+       Unit      -> order of the Regiment / Unit Roster (Active + Archived)
+    */
+
+    const uniqueInOrder = values => {
+        const seen = new Set();
+        const result = [];
+
+        values.forEach(value => {
+            const clean = String(value || "").trim();
+            if(!clean) return;
+
+            const key = normalizeRobloxUsername(clean);
+            if(seen.has(key)) return;
+
+            seen.add(key);
+            result.push(clean);
+        });
+
+        return result;
+    };
+
+    const existingValues = values =>
+        new Set(
+            values
+            .map(value => normalizeRobloxUsername(value))
+            .filter(Boolean)
+        );
+
+    const defaultActionOrder = actionType => {
+        const actionSelect = document.getElementById("quickRecordAction");
+        if(!actionSelect) return [];
+
+        return Array.from(actionSelect.options)
+        .map(option => String(option.value || ""))
+        .filter(value => value.startsWith(actionType + "::"))
+        .map(value => value.slice((actionType + "::").length));
+    };
 
     if(category === "username") {
-        return unique(
+        return uniqueInOrder(
             personnel.map(person => person.username)
         );
     }
 
-
     if(category === "rank") {
-        return unique(
+        const existing = existingValues(
             personnel
             .map(person => person.rank)
             .filter(rank =>
                 rank
-                &&
-                normalizeRobloxUsername(rank) !== normalizeRobloxUsername("None")
-                &&
-                normalizeRobloxUsername(rank) !== normalizeRobloxUsername("Unranked")
+                && normalizeRobloxUsername(rank) !== normalizeRobloxUsername("None")
+                && normalizeRobloxUsername(rank) !== normalizeRobloxUsername("Unranked")
             )
+        );
+
+        return uniqueInOrder(
+            defaultActionOrder("rank")
+            .filter(rank => existing.has(normalizeRobloxUsername(rank)))
         );
     }
 
-
     if(category === "medal") {
-        return unique(
+        const existing = existingValues(
             personnel.flatMap(person =>
                 Array.isArray(person.medals)
                 ? person.medals.map(medal => medal.name)
                 : []
             )
         );
+
+        return uniqueInOrder(
+            defaultActionOrder("medal")
+            .filter(medal => existing.has(normalizeRobloxUsername(medal)))
+        );
     }
 
-
     if(category === "title") {
-        return unique(
+        const existing = existingValues(
             personnel
             .map(person => person.title)
             .filter(title =>
                 title
-                &&
-                normalizeRobloxUsername(title) !== normalizeRobloxUsername("None")
+                && normalizeRobloxUsername(title) !== normalizeRobloxUsername("None")
             )
+        );
+
+        return uniqueInOrder(
+            defaultActionOrder("title")
+            .filter(title => existing.has(normalizeRobloxUsername(title)))
         );
     }
 
-
     if(category === "unit") {
-        /*
-           Include every regiment / unit currently present in the roster,
-           regardless of whether it is Active or Archived.
-        */
-        return unique(
+        /* Preserve Regiment / Unit Roster default order, including Archived. */
+        return uniqueInOrder(
             unitRoster.map(unit => unit.title)
         );
     }
 
-
     return [];
 
 }
-
 
 function updatePersonnelSearchControls() {
 
