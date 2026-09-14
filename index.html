@@ -1913,7 +1913,25 @@ Role
 Create Staff Account
 </button>
 
-<div id="staffAccountList" class="account-list"></div>
+<button
+class="secondary-btn"
+type="button"
+style="margin-top:20px;margin-left:8px;"
+onclick="loadStaffAccountsFromSupabase()">
+Load / Refresh Staff Accounts
+</button>
+
+<div class="account-help" style="margin-top:18px;margin-bottom:0;">
+Staff account management is the only area here that uses the Supabase
+<strong>manage-staff</strong> Edge Function. Ordinary registry actions do not.
+</div>
+
+<div id="staffAccountList" class="account-list">
+<div class="person-meta">
+Staff accounts are not loaded automatically. Use “Load / Refresh Staff Accounts”
+when you intentionally want to contact Supabase.
+</div>
+</div>
 
 </div>
 
@@ -6827,49 +6845,73 @@ function requireAdministrator() {
 async function callStaffAdmin(action, payload = {}) {
 
     if(!requireAdministrator()) {
-
         return null;
-
     }
 
+    try {
 
-    const { data, error } =
-    await supabaseClient.functions.invoke(
-        "manage-staff",
-        {
-            body: {
-                action: action,
-                ...payload
+        const { data, error } =
+        await supabaseClient.functions.invoke(
+            "manage-staff",
+            {
+                body: {
+                    action: action,
+                    ...payload
+                }
             }
-        }
-    );
-
-
-    if(error) {
-
-        console.error(error);
-
-        alert(
-            error.message
-            ||
-            "The staff administration request failed."
         );
 
-        return null;
+        if(error) {
+
+            console.error(
+                "Supabase manage-staff Edge Function error:",
+                error
+            );
+
+            return {
+                __edgeFunctionError: true,
+                message:
+                error.message
+                ||
+                "The Supabase staff administration function is unavailable."
+            };
+
+        }
+
+        if(data && data.error) {
+
+            console.error(
+                "Supabase manage-staff returned an error:",
+                data.error
+            );
+
+            return {
+                __edgeFunctionError: true,
+                message: data.error
+            };
+
+        }
+
+        return data;
 
     }
 
+    catch(error) {
 
-    if(data && data.error) {
+        console.error(
+            "Could not reach Supabase manage-staff Edge Function:",
+            error
+        );
 
-        alert(data.error);
-
-        return null;
+        return {
+            __edgeFunctionError: true,
+            message:
+            error && error.message
+            ? error.message
+            : "Could not reach the Supabase staff administration function."
+        };
 
     }
-
-
-    return data;
 
 }
 
@@ -6964,7 +7006,17 @@ async function createStaffAccount() {
     );
 
 
-    if(!result) {
+    if(
+        !result
+        ||
+        result.__edgeFunctionError
+    ) {
+
+        alert(
+            result && result.message
+            ? result.message
+            : "Supabase staff account management is unavailable."
+        );
 
         return;
 
@@ -7025,6 +7077,17 @@ function clearStaffAccountForm() {
 }
 
 
+async function loadStaffAccountsFromSupabase() {
+
+    if(!requireAdministrator()) {
+        return;
+    }
+
+    await renderStaffAccounts();
+
+}
+
+
 async function renderStaffAccounts() {
 
     const panel =
@@ -7060,10 +7123,26 @@ async function renderStaffAccounts() {
     await callStaffAdmin("list");
 
 
-    if(!result) {
+    if(
+        !result
+        ||
+        result.__edgeFunctionError
+    ) {
 
         panel.innerHTML =
-        '<div class="person-meta">Account management is not active until the manage-staff Edge Function is deployed.</div>';
+        '<div class="person-meta">'
+        +
+        'Supabase staff account management is currently unavailable. '
+        +
+        'Ordinary registry functions are still available and do not require this Edge Function.'
+        +
+        (
+            result && result.message
+            ? '<br><br><strong>Supabase message:</strong> ' + escapeHTML(result.message)
+            : ''
+        )
+        +
+        '</div>';
 
         return;
 
@@ -7246,7 +7325,7 @@ async function resetStaffPassword(userId, accountName) {
     );
 
 
-    if(result) {
+    if(result && !result.__edgeFunctionError) {
 
         alert(
             "Password changed."
@@ -7269,7 +7348,7 @@ async function toggleStaffAccount(userId, currentlyActive) {
     );
 
 
-    if(result) {
+    if(result && !result.__edgeFunctionError) {
 
         await renderStaffAccounts();
 
@@ -7313,7 +7392,7 @@ async function deleteStaffAccount(userId, accountName) {
     );
 
 
-    if(result) {
+    if(result && !result.__edgeFunctionError) {
 
         await renderStaffAccounts();
 
@@ -7377,6 +7456,18 @@ function escapeHTML(value) {
 
 function renderEverything() {
 
+    /*
+       LOCAL REGISTRY REFRESH
+       ----------------------
+       Ordinary registry actions should remain local for now.
+       Do NOT call Supabase Edge Functions from here.
+
+       This keeps actions such as demotion, title removal,
+       stripping honours, quick record actions, unit transfer,
+       unit rename/archive/restore, username update and Roblox ID
+       updates independent from Supabase staff-management functions.
+    */
+
     updatePersonnelSearchControls();
 
     renderPersonnel();
@@ -7389,16 +7480,11 @@ function renderEverything() {
 
     renderAudit();
 
-    renderStaffAccounts();
-
     if(document.getElementById("quickRobloxUsername")) {
         updateQuickRecorder();
     }
 
-
     populateQuickUnitAssignment();
-
-
 
     renderUnitTransferRegistry();
 
