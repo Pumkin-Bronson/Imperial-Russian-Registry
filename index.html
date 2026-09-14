@@ -862,6 +862,18 @@ th {
     color: #2e6b38;
 }
 
+.quick-campaign-name-box {
+    margin-top: 12px;
+}
+
+.quick-campaign-name-box label {
+    margin-top: 0;
+}
+
+.quick-campaign-name-box input {
+    margin-top: 7px;
+}
+
 .quick-note-box {
     margin-top: 22px;
     background: #fffdf8;
@@ -1685,7 +1697,7 @@ REGISTRY ADMINISTRATION
 <h2>Personnel Action Recorder</h2>
 
 <p class="quick-recorder-help">
-Enter a Roblox username and select a rank, medal or title. If the username already exists,
+Enter a Roblox username and select a rank, medal, title or campaign action. If the username already exists,
 the action is added to that profile. Otherwise a new profile is created automatically.
 </p>
 
@@ -1776,7 +1788,31 @@ Input
 <option value="medal::For Bravery and Diligence 1804">For Bravery and Diligence 1804</option>
 <option value="medal::Medal in Honour of the Distinguished Soldier of 1806">Medal in Honour of the Distinguished Soldier of 1806</option>
 </optgroup>
+
+<optgroup label="Campaign">
+<option value="campaign::manual">Enter Participated Campaign</option>
+</optgroup>
+
 </select>
+
+<div
+id="quickCampaignNameBox"
+class="quick-campaign-name-box hidden">
+
+<label>
+Campaign Name
+
+<input
+id="quickCampaignName"
+type="text"
+autocomplete="off"
+placeholder="Enter the name of the participated campaign..."
+oninput="updateQuickRecorder()">
+
+</label>
+
+</div>
+
 <div id="quickRecordWarning" class="quick-feedback"></div>
 </label>
 
@@ -1836,7 +1872,7 @@ Set Date to Today
 </div>
 
 <div class="quick-note-help">
-The selected date and note will be stored with the rank, medal or title record.
+The selected date and note will be stored with the rank, medal, title or campaign record.
 </div>
 
 </div>
@@ -5638,6 +5674,22 @@ function personAlreadyHasAction(person, action) {
 
     }
 
+
+    if(action.type === "campaign") {
+
+        const history = Array.isArray(person.campaignHistory)
+            ? person.campaignHistory
+            : [];
+
+        return history.some(entry =>
+            normalizeRobloxUsername(entry.campaign || entry.name || "")
+            ===
+            normalizeRobloxUsername(action.value)
+        );
+
+    }
+
+
     return false;
 
 }
@@ -5898,7 +5950,44 @@ function updateQuickRecorder() {
     const warningBox = document
     .getElementById("quickRecordWarning");
 
-    const action = parseQuickAction();
+    let action = parseQuickAction();
+
+    const campaignBox =
+    document.getElementById("quickCampaignNameBox");
+
+    const campaignInput =
+    document.getElementById("quickCampaignName");
+
+
+    const campaignMode =
+    action
+    &&
+    action.type === "campaign";
+
+
+    if(campaignBox) {
+
+        campaignBox.classList.toggle(
+            "hidden",
+            !campaignMode
+        );
+
+    }
+
+
+    if(
+        campaignMode
+        &&
+        campaignInput
+    ) {
+
+        action = {
+            type: "campaign",
+            value: campaignInput.value.trim()
+        };
+
+    }
+
 
     suggestionBox.innerHTML = "";
     warningBox.textContent = "";
@@ -5942,10 +6031,20 @@ function updateQuickRecorder() {
 
         }
 
-        else if(exact && action && personAlreadyHasAction(exact, action)) {
+        else if(
+            exact
+            &&
+            action
+            &&
+            action.value
+            &&
+            personAlreadyHasAction(exact, action)
+        ) {
 
             warningBox.textContent =
-            "User already possessed the award or title.";
+            action.type === "campaign"
+            ? "User has already recorded participation in this campaign."
+            : "User already possessed the award or title.";
 
             warningBox.classList.add("warning");
 
@@ -5958,7 +6057,15 @@ function updateQuickRecorder() {
 
         }
 
-        else if(action) {
+        else if(
+            action
+            &&
+            (
+                action.type !== "campaign"
+                ||
+                action.value
+            )
+        ) {
 
             warningBox.textContent =
             "No exact profile found. A new profile will be created for this Roblox username.";
@@ -6008,7 +6115,30 @@ function submitQuickRecord() {
     .getElementById("quickRobloxUsername");
 
     const username = usernameInput.value.trim();
-    const action = parseQuickAction();
+
+    let action = parseQuickAction();
+
+
+    if(
+        action
+        &&
+        action.type === "campaign"
+    ) {
+
+        const campaignName =
+        document
+        .getElementById("quickCampaignName")
+        .value
+        .trim();
+
+
+        action = {
+            type: "campaign",
+            value: campaignName
+        };
+
+    }
+
 
     const note = document
     .getElementById("quickRecordNote")
@@ -6052,12 +6182,28 @@ function submitQuickRecord() {
     if(!action) {
 
         warningBox.textContent =
-        "Please select a rank, medal or title from Input.";
+        "Please select a rank, medal, title or campaign action from Input.";
 
         warningBox.classList.add("warning");
         return;
 
     }
+
+
+    if(
+        action.type === "campaign"
+        &&
+        !action.value
+    ) {
+
+        warningBox.textContent =
+        "Please enter the name of the participated campaign.";
+
+        warningBox.classList.add("warning");
+        return;
+
+    }
+
 
     if(unitEvaluation.blocked) {
 
@@ -6097,7 +6243,9 @@ function submitQuickRecord() {
     if(person && personAlreadyHasAction(person, action)) {
 
         warningBox.textContent =
-        "User already possessed the award or title.";
+        action.type === "campaign"
+        ? "User has already recorded participation in this campaign."
+        : "User already possessed the award or title.";
 
         warningBox.classList.add("warning");
         return;
@@ -6131,6 +6279,7 @@ function submitQuickRecord() {
     if(!Array.isArray(person.medals)) person.medals = [];
     if(!Array.isArray(person.rankHistory)) person.rankHistory = [];
     if(!Array.isArray(person.titleHistory)) person.titleHistory = [];
+    if(!Array.isArray(person.campaignHistory)) person.campaignHistory = [];
     if(!Array.isArray(person.unitHistory)) person.unitHistory = [];
 
     if(
@@ -6183,6 +6332,18 @@ function submitQuickRecord() {
 
     }
 
+
+    if(action.type === "campaign") {
+
+        person.campaignHistory.push({
+            campaign: action.value,
+            date: recordDate,
+            reason: note
+        });
+
+    }
+
+
     addAudit(
         (createdNew ? "Created profile and recorded " : "Recorded ")
         + action.type
@@ -6212,6 +6373,25 @@ function submitQuickRecord() {
         : "Action added to the existing user profile successfully.";
 
     warningBox.classList.add("success");
+
+
+    /*
+       Keep "Enter Participated Campaign" selected after submission,
+       but clear the previous campaign name so the next campaign can
+       be entered manually without accidentally duplicating the old name.
+    */
+    if(
+        action.type === "campaign"
+        &&
+        document.getElementById("quickCampaignName")
+    ) {
+
+        document
+        .getElementById("quickCampaignName")
+        .value = "";
+
+    }
+
 
     /*
        Keep the selected Input action after submission so staff do not
