@@ -307,6 +307,31 @@ main {
     max-width: 400px;
 }
 
+.personnel-search-controls {
+    display: grid;
+    grid-template-columns: 190px 260px minmax(220px, 360px);
+    gap: 10px;
+    align-items: end;
+}
+
+.personnel-search-controls select,
+.personnel-search-controls input {
+    margin-top: 0;
+}
+
+.personnel-search-controls input:disabled {
+    background: #eee8dc;
+    color: var(--muted);
+    cursor: not-allowed;
+}
+
+@media(max-width:900px) {
+    .personnel-search-controls {
+        grid-template-columns: 1fr;
+        margin-top: 15px;
+    }
+}
+
 /* =========================================================
    PERSONNEL
    ========================================================= */
@@ -1469,11 +1494,31 @@ CENTRAL REGISTER
 
 </div>
 
+<div class="personnel-search-controls">
+
+<select
+id="personnelSearchCategory"
+onchange="updatePersonnelSearchControls()">
+<option value="username">Roblox Username</option>
+<option value="rank">Rank</option>
+<option value="medal">Medal</option>
+<option value="title">Title</option>
+<option value="unit">Regiment / Unit</option>
+</select>
+
+<select
+id="personnelSearchValue"
+onchange="renderPersonnel()">
+<option value="">All Roblox Usernames</option>
+</select>
+
 <input
 id="searchBox"
 class="search-box"
-placeholder="Search name, username, rank or title..."
+placeholder="Enter Roblox Username..."
 oninput="renderPersonnel()">
+
+</div>
 
 </div>
 
@@ -2634,45 +2679,302 @@ function saveData() {
    PERSONNEL LIST
    ========================================================= */
 
+function getPersonnelSearchOptions(category) {
+
+    const unique =
+    values =>
+    [...new Set(
+        values
+        .map(value => String(value || "").trim())
+        .filter(Boolean)
+    )]
+    .sort((a,b) => a.localeCompare(b));
+
+
+    if(category === "username") {
+        return unique(
+            personnel.map(person => person.username)
+        );
+    }
+
+
+    if(category === "rank") {
+        return unique(
+            personnel
+            .map(person => person.rank)
+            .filter(rank =>
+                rank
+                &&
+                normalizeRobloxUsername(rank) !== normalizeRobloxUsername("None")
+                &&
+                normalizeRobloxUsername(rank) !== normalizeRobloxUsername("Unranked")
+            )
+        );
+    }
+
+
+    if(category === "medal") {
+        return unique(
+            personnel.flatMap(person =>
+                Array.isArray(person.medals)
+                ? person.medals.map(medal => medal.name)
+                : []
+            )
+        );
+    }
+
+
+    if(category === "title") {
+        return unique(
+            personnel
+            .map(person => person.title)
+            .filter(title =>
+                title
+                &&
+                normalizeRobloxUsername(title) !== normalizeRobloxUsername("None")
+            )
+        );
+    }
+
+
+    if(category === "unit") {
+        /*
+           Include every regiment / unit currently present in the roster,
+           regardless of whether it is Active or Archived.
+        */
+        return unique(
+            unitRoster.map(unit => unit.title)
+        );
+    }
+
+
+    return [];
+
+}
+
+
+function updatePersonnelSearchControls() {
+
+    const categorySelect =
+    document.getElementById("personnelSearchCategory");
+
+    const valueSelect =
+    document.getElementById("personnelSearchValue");
+
+    const searchBox =
+    document.getElementById("searchBox");
+
+
+    if(!categorySelect || !valueSelect || !searchBox) {
+        return;
+    }
+
+
+    const category =
+    categorySelect.value || "username";
+
+
+    const previousValue =
+    valueSelect.value;
+
+
+    const options =
+    getPersonnelSearchOptions(category);
+
+
+    const labels = {
+        username: "All Roblox Usernames",
+        rank: "All Ranks",
+        medal: "All Medals",
+        title: "All Titles",
+        unit: "All Regiments / Units"
+    };
+
+
+    valueSelect.innerHTML =
+    `<option value="">${escapeHTML(labels[category] || "All")}</option>`
+    +
+    options
+    .map(value => {
+
+        let suffix = "";
+
+        if(category === "unit") {
+            const unit =
+            unitRoster.find(item =>
+                normalizeRobloxUsername(item.title)
+                ===
+                normalizeRobloxUsername(value)
+            );
+
+            if(unit) {
+                suffix =
+                unit.status === "Archived"
+                ? " — Archived"
+                : " — Active";
+            }
+        }
+
+        return `
+        <option value="${escapeHTML(value)}">
+        ${escapeHTML(value + suffix)}
+        </option>`;
+
+    })
+    .join("");
+
+
+    if(
+        previousValue
+        &&
+        options.some(value => value === previousValue)
+    ) {
+        valueSelect.value = previousValue;
+    }
+
+
+    const usernameMode =
+    category === "username";
+
+
+    searchBox.disabled =
+    !usernameMode;
+
+
+    searchBox.placeholder =
+    usernameMode
+    ? "Enter Roblox Username..."
+    : "Text search available only for Roblox Username";
+
+
+    if(!usernameMode) {
+        searchBox.value = "";
+    }
+
+
+    renderPersonnel();
+
+}
+
+
 function renderPersonnel() {
 
     const list =
     document.getElementById("personnelList");
 
 
-    const search =
-    document
-    .getElementById("searchBox")
-    .value
-    .toLowerCase();
+    if(!list) {
+        return;
+    }
+
+
+    const category =
+    document.getElementById("personnelSearchCategory")?.value
+    ||
+    "username";
+
+
+    const selectedValue =
+    String(
+        document.getElementById("personnelSearchValue")?.value
+        ||
+        ""
+    );
+
+
+    const searchBox =
+    document.getElementById("searchBox");
+
+
+    const typedUsername =
+    category === "username"
+    ? String(searchBox?.value || "").trim().toLowerCase()
+    : "";
 
 
     const filtered =
     personnel.filter(person => {
 
-        const searchable = [
+        if(category === "username") {
 
-            person.name,
+            const username =
+            String(person.username || "");
 
-            person.username,
+            if(
+                selectedValue
+                &&
+                normalizeRobloxUsername(username)
+                !==
+                normalizeRobloxUsername(selectedValue)
+            ) {
+                return false;
+            }
 
-            person.rank,
+            if(
+                typedUsername
+                &&
+                !username.toLowerCase().includes(typedUsername)
+            ) {
+                return false;
+            }
 
-            person.title,
-
-            person.unit
-
-        ]
-        .join(" ")
-        .toLowerCase();
+            return true;
+        }
 
 
-        return searchable.includes(search);
+        if(!selectedValue) {
+            return true;
+        }
+
+
+        if(category === "rank") {
+            return (
+                normalizeRobloxUsername(person.rank || "")
+                ===
+                normalizeRobloxUsername(selectedValue)
+            );
+        }
+
+
+        if(category === "title") {
+            return (
+                normalizeRobloxUsername(person.title || "")
+                ===
+                normalizeRobloxUsername(selectedValue)
+            );
+        }
+
+
+        if(category === "unit") {
+            return (
+                normalizeRobloxUsername(person.unit || "")
+                ===
+                normalizeRobloxUsername(selectedValue)
+            );
+        }
+
+
+        if(category === "medal") {
+            return (
+                Array.isArray(person.medals)
+                &&
+                person.medals.some(medal =>
+                    normalizeRobloxUsername(medal.name || "")
+                    ===
+                    normalizeRobloxUsername(selectedValue)
+                )
+            );
+        }
+
+
+        return true;
 
     });
 
 
     list.innerHTML =
+    filtered.length
+    ?
     filtered
     .map(person => {
 
@@ -2680,7 +2982,7 @@ function renderPersonnel() {
 
         <button
         class="person-card"
-        onclick="openPassport('${person.id}')">
+        onclick="openPassport('${escapeJS(person.id)}')">
 
             <div class="person-name">
             ${escapeHTML(person.name)}
@@ -2709,7 +3011,9 @@ function renderPersonnel() {
         `;
 
     })
-    .join("");
+    .join("")
+    :
+    `<div class="empty-message">No personnel records match this search.</div>`;
 
 }
 
@@ -7033,6 +7337,8 @@ function escapeHTML(value) {
    ========================================================= */
 
 function renderEverything() {
+
+    updatePersonnelSearchControls();
 
     renderPersonnel();
 
