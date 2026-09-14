@@ -325,6 +325,16 @@ main {
     cursor: not-allowed;
 }
 
+.personnel-result-count {
+    margin-top: 9px;
+    text-align: right;
+    color: var(--red);
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: .2px;
+}
+
 @media(max-width:900px) {
     .personnel-search-controls {
         grid-template-columns: 1fr;
@@ -1611,6 +1621,13 @@ class="search-box"
 placeholder="Enter Roblox Username..."
 oninput="renderPersonnel()">
 
+</div>
+
+<div
+id="personnelResultCount"
+class="personnel-result-count staff-only hidden"
+aria-live="polite">
+0 matched results
 </div>
 
 </div>
@@ -3243,6 +3260,27 @@ function renderPersonnel() {
         return true;
 
     });
+
+
+    const resultCount =
+    document.getElementById("personnelResultCount");
+
+
+    if(resultCount) {
+
+        const count =
+        filtered.length;
+
+        resultCount.textContent =
+        count
+        +
+        (
+            count === 1
+            ? " matched result"
+            : " matched results"
+        );
+
+    }
 
 
     list.innerHTML =
