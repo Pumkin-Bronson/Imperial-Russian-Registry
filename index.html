@@ -515,6 +515,38 @@ main {
     font-family: Georgia, "Times New Roman", serif;
 }
 
+.service-history-entry {
+    position: relative;
+    padding-right: 82px;
+}
+
+.service-history-delete-btn {
+    position: absolute;
+    top: 9px;
+    right: 0;
+    border: 1px solid #9d7777;
+    background: #fff8f6;
+    color: var(--dark-red);
+    padding: 5px 8px;
+    font-family: Arial, sans-serif;
+    font-size: 10px;
+    font-weight: bold;
+}
+
+.service-history-delete-btn:hover {
+    background: #f4dddd;
+}
+
+.history-confirm-summary {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    background: #fffdf8;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
 .service-profile-panel {
     padding: 0 8px 18px 34px;
 }
@@ -1659,7 +1691,8 @@ Commander of the Unit
 Record Date
 <input
     id="unitRosterDate"
-    type="date">
+    type="date"
+    onchange="clearSpecialRecordDate('unitRosterDate')">
 </label>
 
 <button
@@ -1667,6 +1700,13 @@ Record Date
     type="button"
     onclick="setUnitRosterDateToday()">
 Set Date to Today
+</button>
+
+<button
+    class="secondary-btn unit-date-btn"
+    type="button"
+    onclick="setSpecialRecordDate('unitRosterDate','Before September 2026')">
+Before September 2026
 </button>
 
 <button
@@ -1860,7 +1900,8 @@ Note / Reason
 Record Date
 <input
     id="quickRecordDate"
-    type="date">
+    type="date"
+    onchange="clearSpecialRecordDate('quickRecordDate')">
 </label>
 
 <button
@@ -1868,6 +1909,13 @@ Record Date
     type="button"
     onclick="setQuickRecordDateToday()">
 Set Date to Today
+</button>
+
+<button
+    class="secondary-btn quick-date-btn"
+    type="button"
+    onclick="setSpecialRecordDate('quickRecordDate','Before September 2026')">
+Before September 2026
 </button>
 
 </div>
@@ -1956,7 +2004,7 @@ The selected date and note will be stored with the rank, medal or title record.
 
         <label>
         Record Date
-        <input id="campaignRecordDate" type="date">
+        <input id="campaignRecordDate" type="date" onchange="clearSpecialRecordDate('campaignRecordDate')">
         </label>
     </div>
 
@@ -1966,6 +2014,14 @@ The selected date and note will be stored with the rank, medal or title record.
     style="margin-top:14px;"
     onclick="setCampaignRecordDateToday()">
     Set Date to Today
+    </button>
+
+    <button
+    class="secondary-btn"
+    type="button"
+    style="margin-top:14px;margin-left:8px;"
+    onclick="setSpecialRecordDate('campaignRecordDate','Before September 2026')">
+    Before September 2026
     </button>
 
     <div id="campaignRecordMessage" class="quick-feedback"></div>
@@ -2183,6 +2239,53 @@ aria-hidden="true">
             <button class="primary-btn" type="button" onclick="confirmUsernameUpdate()">Enter</button>
         </div>
     </div>
+</div>
+
+
+
+<div
+id="serviceHistoryDeleteModal"
+class="registry-modal-backdrop"
+aria-hidden="true">
+
+    <div class="registry-modal">
+
+        <div class="small-title">
+        SERVICE HISTORY ACTION
+        </div>
+
+        <h2>Remove Service History Record?</h2>
+
+        <p>
+        Confirm that you want to remove this individual entry from the person's Service History.
+        This removes the historical line only and does not automatically change the person's current rank, title, decoration, regiment or username.
+        </p>
+
+        <div
+        id="serviceHistoryDeleteSummary"
+        class="history-confirm-summary">
+        </div>
+
+        <div class="registry-modal-actions">
+
+            <button
+            class="secondary-btn"
+            type="button"
+            onclick="cancelServiceHistoryRemoval()">
+            Cancel
+            </button>
+
+            <button
+            class="danger-btn"
+            type="button"
+            onclick="confirmServiceHistoryRemoval()">
+            Confirm Remove
+            </button>
+
+        </div>
+
+    </div>
+
 </div>
 
 
@@ -3280,6 +3383,49 @@ function ensureServiceCollections(person) {
     if(!Array.isArray(person.campaignHistory)) person.campaignHistory = [];
     if(!Array.isArray(person.serviceEvents)) person.serviceEvents = [];
     if(!Array.isArray(person.unitHistory)) person.unitHistory = [];
+    if(!Array.isArray(person.hiddenServiceHistoryIds)) person.hiddenServiceHistoryIds = [];
+
+}
+
+
+function ensureServiceHistoryRecordIDs(person) {
+
+    ensureServiceCollections(person);
+
+    const collections = [
+        ["rank", person.rankHistory],
+        ["medal", person.medals],
+        ["title", person.titleHistory],
+        ["campaign", person.campaignHistory],
+        ["event", person.serviceEvents]
+    ];
+
+    collections.forEach(([prefix, items]) => {
+
+        items.forEach((entry,index) => {
+
+            if(!entry || typeof entry !== "object") {
+                return;
+            }
+
+            if(!entry._serviceHistoryId) {
+
+                entry._serviceHistoryId =
+                prefix
+                + "-"
+                + person.id
+                + "-"
+                + Date.now().toString(36)
+                + "-"
+                + index
+                + "-"
+                + Math.random().toString(36).slice(2,9);
+
+            }
+
+        });
+
+    });
 
 }
 
@@ -4180,6 +4326,166 @@ function removeDecoration(personID, medalIndex) {
 }
 
 
+let pendingServiceHistoryRemoval = null;
+
+
+function requestServiceHistoryRemoval(
+    personID,
+    historyId,
+    eventType,
+    eventLabel
+) {
+
+    if(userRole !== "staff") {
+        return;
+    }
+
+
+    const person =
+    personnel.find(item =>
+        item.id === personID
+    );
+
+
+    if(!person || !historyId) {
+        return;
+    }
+
+
+    pendingServiceHistoryRemoval = {
+        personID,
+        historyId,
+        eventType,
+        eventLabel
+    };
+
+
+    const summary =
+    document.getElementById("serviceHistoryDeleteSummary");
+
+
+    if(summary) {
+
+        summary.innerHTML =
+        "<strong>"
+        +
+        escapeHTML(eventType || "Service History")
+        +
+        "</strong><br>"
+        +
+        escapeHTML(eventLabel || "");
+
+    }
+
+
+    const modal =
+    document.getElementById("serviceHistoryDeleteModal");
+
+
+    if(modal) {
+
+        modal.classList.add("active");
+        modal.setAttribute("aria-hidden","false");
+
+    }
+
+}
+
+
+function cancelServiceHistoryRemoval() {
+
+    pendingServiceHistoryRemoval =
+    null;
+
+
+    const modal =
+    document.getElementById("serviceHistoryDeleteModal");
+
+
+    if(modal) {
+
+        modal.classList.remove("active");
+        modal.setAttribute("aria-hidden","true");
+
+    }
+
+}
+
+
+function confirmServiceHistoryRemoval() {
+
+    if(
+        userRole !== "staff"
+        ||
+        !pendingServiceHistoryRemoval
+    ) {
+
+        cancelServiceHistoryRemoval();
+        return;
+
+    }
+
+
+    const person =
+    personnel.find(item =>
+        item.id === pendingServiceHistoryRemoval.personID
+    );
+
+
+    if(!person) {
+
+        cancelServiceHistoryRemoval();
+        return;
+
+    }
+
+
+    ensureServiceCollections(person);
+
+
+    if(
+        !person.hiddenServiceHistoryIds.includes(
+            pendingServiceHistoryRemoval.historyId
+        )
+    ) {
+
+        person.hiddenServiceHistoryIds.push(
+            pendingServiceHistoryRemoval.historyId
+        );
+
+    }
+
+
+    addAudit(
+        "Removed Service History entry from "
+        +
+        person.username
+        +
+        ": "
+        +
+        pendingServiceHistoryRemoval.eventType
+        +
+        " — "
+        +
+        pendingServiceHistoryRemoval.eventLabel
+    );
+
+
+    const personID =
+    person.id;
+
+
+    saveData();
+
+    cancelServiceHistoryRemoval();
+
+    renderEverything();
+
+    openPassport(personID);
+
+}
+
+
 function openPassport(personID) {
 
     selectedPerson =
@@ -4205,6 +4511,8 @@ function openPassport(personID) {
 
     ensureServiceCollections(person);
 
+    ensureServiceHistoryRecordIDs(person);
+
 
     const linkedStatus =
     getLinkedPersonnelStatus(person);
@@ -4221,14 +4529,37 @@ function openPassport(personID) {
     const serviceHistoryEvents = [];
 
 
-    function pushServiceHistoryEvent(date, type, label, reason = "", extra = "") {
+    function pushServiceHistoryEvent(
+        date,
+        type,
+        label,
+        reason = "",
+        extra = "",
+        historyId = ""
+    ) {
+
+        const resolvedHistoryId =
+        String(historyId || "").trim();
+
+
+        if(
+            resolvedHistoryId
+            &&
+            person.hiddenServiceHistoryIds.includes(resolvedHistoryId)
+        ) {
+
+            return;
+
+        }
+
 
         serviceHistoryEvents.push({
             date: String(date || "").trim(),
             type: String(type || "").trim(),
             label: String(label || "").trim(),
             reason: String(reason || "").trim(),
-            extra: String(extra || "").trim()
+            extra: String(extra || "").trim(),
+            historyId: resolvedHistoryId
         });
 
     }
@@ -4243,6 +4574,16 @@ function openPassport(personID) {
         if(!value) {
 
             return "Date not recorded";
+
+        }
+
+
+        if(
+            value ===
+            "Before September 2026"
+        ) {
+
+            return "Before September 2026";
 
         }
 
@@ -4316,6 +4657,20 @@ function serviceHistorySortValue(dateText) {
         }
 
 
+        if(
+            value ===
+            "Before September 2026"
+        ) {
+
+            /*
+               Place this broad historical marker immediately before
+               September 2026 when sorting the service timeline.
+            */
+            return 20260831;
+
+        }
+
+
         /*
            Full YYYY-MM-DD dates sort naturally.
            Year-only records such as "1894" are treated as 1 January of that year.
@@ -4371,7 +4726,9 @@ function serviceHistorySortValue(dateText) {
             entry.date,
             "Promotion",
             entry.rank,
-            entry.reason || ""
+            entry.reason || "",
+            "",
+            entry._serviceHistoryId || ""
         );
 
     });
@@ -4389,7 +4746,9 @@ function serviceHistorySortValue(dateText) {
                 ? " — " + medal.grade
                 : ""
             ),
-            medal.citation || ""
+            medal.citation || "",
+            "",
+            medal._serviceHistoryId || ""
         );
 
     });
@@ -4401,7 +4760,9 @@ function serviceHistorySortValue(dateText) {
             entry.date,
             "Title",
             entry.title,
-            entry.reason || ""
+            entry.reason || "",
+            "",
+            entry._serviceHistoryId || ""
         );
 
     });
@@ -4416,7 +4777,8 @@ function serviceHistorySortValue(dateText) {
             entry.reason || entry.note || "",
             entry.performance
             ? "Performance: " + entry.performance
-            : ""
+            : "",
+            entry._serviceHistoryId || ""
         );
 
     });
@@ -4434,7 +4796,9 @@ function serviceHistorySortValue(dateText) {
                 " → "
                 +
                 (event.replacement || "Unranked"),
-                event.reason || ""
+                event.reason || "",
+                "",
+                event._serviceHistoryId || ""
             );
 
         }
@@ -4455,7 +4819,8 @@ function serviceHistorySortValue(dateText) {
                 event.reason || "",
                 event.originalAwardDate
                 ? "Originally awarded " + event.originalAwardDate
-                : ""
+                : "",
+                event._serviceHistoryId || ""
             );
 
         }
@@ -4467,7 +4832,9 @@ function serviceHistorySortValue(dateText) {
                 event.date,
                 "Title Removed",
                 event.item || "",
-                event.reason || ""
+                event.reason || "",
+                "",
+                event._serviceHistoryId || ""
             );
 
         }
@@ -4480,12 +4847,20 @@ function serviceHistorySortValue(dateText) {
                 event.reason || "",
                 event.performance
                 ? "Performance: " + event.performance
-                : ""
+                : "",
+                event._serviceHistoryId || ""
             );
         }
 
         if(event.type === "username_changed") {
-            pushServiceHistoryEvent(event.date,"Roblox Username Changed",event.item || "",event.reason || "");
+            pushServiceHistoryEvent(
+                event.date,
+                "Roblox Username Changed",
+                event.item || "",
+                event.reason || "",
+                "",
+                event._serviceHistoryId || ""
+            );
         }
 
     });
@@ -4554,6 +4929,28 @@ function serviceHistorySortValue(dateText) {
                 event.extra
                 ?
                 `<div class="person-meta">${escapeHTML(event.extra)}</div>`
+                :
+                ""
+            }
+
+            ${
+                userRole === "staff"
+                &&
+                event.historyId
+                ?
+                `
+                <button
+                class="service-history-delete-btn"
+                type="button"
+                onclick="requestServiceHistoryRemoval(
+                    '${escapeJS(person.id)}',
+                    '${escapeJS(event.historyId)}',
+                    '${escapeJS(event.type)}',
+                    '${escapeJS(event.label)}'
+                )">
+                Remove
+                </button>
+                `
                 :
                 ""
             }
@@ -4831,7 +5228,79 @@ function serviceHistorySortValue(dateText) {
    REGIMENT / UNIT ROSTER
    ========================================================= */
 
+const SPECIAL_RECORD_DATE_BEFORE_SEPTEMBER_2026 =
+"Before September 2026";
+
+
+function setSpecialRecordDate(inputID, label) {
+
+    const input =
+    document.getElementById(inputID);
+
+    if(!input) {
+        return;
+    }
+
+    input.value = "";
+    input.dataset.specialDate =
+    label || SPECIAL_RECORD_DATE_BEFORE_SEPTEMBER_2026;
+
+    input.title =
+    "Selected: " + input.dataset.specialDate;
+
+}
+
+
+function clearSpecialRecordDate(inputID) {
+
+    const input =
+    document.getElementById(inputID);
+
+    if(!input) {
+        return;
+    }
+
+    delete input.dataset.specialDate;
+    input.removeAttribute("title");
+
+}
+
+
+function getRecordDateFromInput(inputID, fallbackToday = true) {
+
+    const input =
+    document.getElementById(inputID);
+
+    if(!input) {
+        return fallbackToday
+        ? getTodayISO()
+        : "";
+    }
+
+    const special =
+    String(input.dataset.specialDate || "").trim();
+
+    if(special) {
+        return special;
+    }
+
+    const value =
+    String(input.value || "").trim();
+
+    if(value) {
+        return value;
+    }
+
+    return fallbackToday
+    ? getTodayISO()
+    : "";
+
+}
+
+
 function setUnitRosterDateToday() {
+
+    clearSpecialRecordDate("unitRosterDate");
 
     document
     .getElementById("unitRosterDate")
@@ -4865,11 +5334,7 @@ function createUnitRosterRecord() {
 
 
     const date =
-    document
-    .getElementById("unitRosterDate")
-    .value
-    ||
-    new Date().toISOString().slice(0,10);
+    getRecordDateFromInput("unitRosterDate");
 
 
     const message =
@@ -4964,6 +5429,12 @@ function createUnitRosterRecord() {
 
     document
     .getElementById("unitRosterCommander")
+    .value = "";
+
+    clearSpecialRecordDate("unitRosterDate");
+
+    document
+    .getElementById("unitRosterDate")
     .value = "";
 
 
@@ -6238,6 +6709,8 @@ function updateQuickRecorder() {
 
 function setQuickRecordDateToday() {
 
+    clearSpecialRecordDate("quickRecordDate");
+
     document
     .getElementById("quickRecordDate")
     .value =
@@ -6248,12 +6721,7 @@ function setQuickRecordDateToday() {
 
 function getQuickRecordDate() {
 
-    const value =
-    document
-    .getElementById("quickRecordDate")
-    .value;
-
-    return value || new Date().toISOString().slice(0,10);
+    return getRecordDateFromInput("quickRecordDate");
 
 }
 
@@ -6692,6 +7160,8 @@ function renderCampaignRecordRegistry() {
 
 function setCampaignRecordDateToday() {
 
+    clearSpecialRecordDate("campaignRecordDate");
+
     const field =
     document.getElementById("campaignRecordDate");
 
@@ -6716,9 +7186,7 @@ function submitCampaignRecord() {
     document.getElementById("campaignRecordName").value.trim();
 
     const recordDate =
-    document.getElementById("campaignRecordDate").value
-    ||
-    getTodayISO();
+    getRecordDateFromInput("campaignRecordDate");
 
 
     const message =
@@ -6803,6 +7271,7 @@ function submitCampaignRecord() {
     openPassport(person.id);
 
     document.getElementById("campaignRecordName").value = "";
+    clearSpecialRecordDate("campaignRecordDate");
     document.getElementById("campaignRecordDate").value = "";
 
 
