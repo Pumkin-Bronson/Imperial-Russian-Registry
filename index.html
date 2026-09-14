@@ -836,18 +836,6 @@ th {
     border-color:var(--gold);
 }
 
-.performance-panel {
-    margin-top:18px;
-    padding:16px;
-    border:1px solid var(--border);
-    background:#fffdf8;
-}
-
-.performance-panel textarea {
-    min-height:96px;
-    resize:vertical;
-}
-
 .campaign-record-registry {
     background:var(--light-cream);
     border:1px solid var(--gold);
@@ -1777,7 +1765,7 @@ Roblox Username
     type="text"
     autocomplete="off"
     placeholder="Roblox Username"
-    oninput="updateQuickRecorder()">
+    oninput="updateQuickRecorder(); syncQuickRecorderUsernameToCampaign()">
 <div id="usernameSuggestions" class="username-suggestions"></div>
 </label>
 
@@ -1936,16 +1924,6 @@ The selected date and note will be stored with the rank, medal or title record.
             Select an existing Roblox user and transfer that personnel record from the current regiment / unit to another active formation.
             </p>
         </div>
-
-        <button
-        id="unitPerformanceToggle"
-        class="performance-toggle"
-        type="button"
-        title="Include Performance"
-        aria-label="Include Performance"
-        aria-pressed="false"
-        onclick="toggleRecordPerformance('unit')">
-        </button>
     </div>
 
     <div class="unit-transfer-grid">
@@ -1961,16 +1939,6 @@ The selected date and note will be stored with the rank, medal or title record.
     </div>
 
     <div id="unitTransferCurrent" class="unit-transfer-current"></div>
-
-    <div id="unitPerformancePanel" class="performance-panel hidden">
-        <label>
-        Performance
-        <textarea
-        id="unitPerformanceText"
-        rows="4"
-        placeholder="Enter the person's performance during service with this regiment / unit..."></textarea>
-        </label>
-    </div>
 
     <div id="unitTransferMessage" class="quick-feedback"></div>
 
@@ -1993,13 +1961,13 @@ The selected date and note will be stored with the rank, medal or title record.
         </div>
 
         <button
-        id="campaignPerformanceToggle"
+        id="campaignUsernameSyncToggle"
         class="performance-toggle"
         type="button"
-        title="Include Performance"
-        aria-label="Include Performance"
+        title="Use Roblox Username from Personnel Action Recorder"
+        aria-label="Use Roblox Username from Personnel Action Recorder"
         aria-pressed="false"
-        onclick="toggleRecordPerformance('campaign')">
+        onclick="toggleCampaignUsernameSync()">
         </button>
     </div>
 
@@ -2031,16 +1999,6 @@ The selected date and note will be stored with the rank, medal or title record.
     onclick="setCampaignRecordDateToday()">
     Set Date to Today
     </button>
-
-    <div id="campaignPerformancePanel" class="performance-panel hidden">
-        <label>
-        Performance
-        <textarea
-        id="campaignPerformanceText"
-        rows="4"
-        placeholder="Enter the person's performance during this campaign..."></textarea>
-        </label>
-    </div>
 
     <div id="campaignRecordMessage" class="quick-feedback"></div>
 
@@ -6468,66 +6426,136 @@ function submitQuickRecord() {
    OPTIONAL PERFORMANCE
    ========================================================= */
 
-function toggleRecordPerformance(kind) {
-
-    const campaignMode =
-    kind === "campaign";
+function isCampaignUsernameSyncEnabled() {
 
     const toggle =
-    document.getElementById(
-        campaignMode
-        ? "campaignPerformanceToggle"
-        : "unitPerformanceToggle"
-    );
-
-    const panel =
-    document.getElementById(
-        campaignMode
-        ? "campaignPerformancePanel"
-        : "unitPerformancePanel"
-    );
-
-    const input =
-    document.getElementById(
-        campaignMode
-        ? "campaignPerformanceText"
-        : "unitPerformanceText"
-    );
-
-    if(!toggle || !panel || !input) {
-        return;
-    }
-
-    const enabled =
-    !toggle.classList.contains("active");
-
-    toggle.classList.toggle("active", enabled);
-    toggle.setAttribute("aria-pressed", enabled ? "true" : "false");
-    panel.classList.toggle("hidden", !enabled);
-
-    if(!enabled) {
-        input.value = "";
-    } else {
-        setTimeout(() => input.focus(), 0);
-    }
-
-}
-
-
-function isRecordPerformanceEnabled(kind) {
-
-    const toggle =
-    document.getElementById(
-        kind === "campaign"
-        ? "campaignPerformanceToggle"
-        : "unitPerformanceToggle"
-    );
+    document.getElementById("campaignUsernameSyncToggle");
 
     return Boolean(
         toggle
         &&
         toggle.classList.contains("active")
     );
+
+}
+
+
+function toggleCampaignUsernameSync() {
+
+    const toggle =
+    document.getElementById("campaignUsernameSyncToggle");
+
+    const campaignSelect =
+    document.getElementById("campaignRecordPerson");
+
+    const message =
+    document.getElementById("campaignRecordMessage");
+
+
+    if(!toggle || !campaignSelect) {
+        return;
+    }
+
+
+    const enabled =
+    !toggle.classList.contains("active");
+
+
+    toggle.classList.toggle("active", enabled);
+
+    toggle.setAttribute(
+        "aria-pressed",
+        enabled ? "true" : "false"
+    );
+
+
+    campaignSelect.disabled =
+    enabled;
+
+
+    if(message) {
+        message.textContent = "";
+        message.className = "quick-feedback";
+    }
+
+
+    if(enabled) {
+        syncQuickRecorderUsernameToCampaign();
+    }
+
+}
+
+
+function syncQuickRecorderUsernameToCampaign() {
+
+    if(!isCampaignUsernameSyncEnabled()) {
+        return;
+    }
+
+
+    const campaignSelect =
+    document.getElementById("campaignRecordPerson");
+
+    const quickUsername =
+    document.getElementById("quickRobloxUsername");
+
+    const message =
+    document.getElementById("campaignRecordMessage");
+
+
+    if(!campaignSelect || !quickUsername) {
+        return;
+    }
+
+
+    const typed =
+    normalizeRobloxUsername(quickUsername.value);
+
+
+    const person =
+    personnel.find(item =>
+        normalizeRobloxUsername(item.username || "")
+        ===
+        typed
+    );
+
+
+    if(person) {
+
+        campaignSelect.value =
+        person.id;
+
+
+        if(message) {
+            message.textContent =
+            "Campaign username synced from Personnel Action Recorder: @"
+            +
+            (person.username || "");
+
+            message.className =
+            "quick-feedback success";
+        }
+
+    }
+
+    else {
+
+        campaignSelect.value = "";
+
+
+        if(message) {
+            message.textContent =
+            quickUsername.value.trim()
+            ?
+            "No existing personnel profile matches the Roblox username entered in the Personnel Action Recorder."
+            :
+            "Enter an existing Roblox username in the Personnel Action Recorder.";
+
+            message.className =
+            "quick-feedback warning";
+        }
+
+    }
 
 }
 
@@ -6549,6 +6577,8 @@ function renderCampaignRecordRegistry() {
     select.value;
 
     select.innerHTML =
+    '<option value="">Select existing Roblox username...</option>'
+    +
     personnel
     .slice()
     .sort((a,b) =>
@@ -6570,6 +6600,15 @@ function renderCampaignRecordRegistry() {
         )
     ) {
         select.value = previous;
+    }
+
+
+    select.disabled =
+    isCampaignUsernameSyncEnabled();
+
+
+    if(isCampaignUsernameSyncEnabled()) {
+        syncQuickRecorderUsernameToCampaign();
     }
 
 }
@@ -6605,12 +6644,6 @@ function submitCampaignRecord() {
     ||
     getTodayISO();
 
-    const performance =
-    isRecordPerformanceEnabled("campaign")
-    ?
-    document.getElementById("campaignPerformanceText").value.trim()
-    :
-    "";
 
     const message =
     document.getElementById("campaignRecordMessage");
@@ -6619,6 +6652,23 @@ function submitCampaignRecord() {
     personnel.find(item =>
         item.id === personID
     );
+
+    if(
+        isCampaignUsernameSyncEnabled()
+        &&
+        !person
+    ) {
+
+        message.className =
+        "quick-feedback warning";
+
+        message.textContent =
+        "The Personnel Action Recorder username does not match an existing personnel profile.";
+
+        return;
+
+    }
+
 
     if(!person) {
         message.className = "quick-feedback warning";
@@ -6650,8 +6700,7 @@ function submitCampaignRecord() {
     person.campaignHistory.push({
         campaign: campaignName,
         date: recordDate,
-        reason: "",
-        performance: performance
+        reason: ""
     });
 
     addAudit(
@@ -6666,12 +6715,6 @@ function submitCampaignRecord() {
         " on "
         +
         recordDate
-        +
-        (
-            performance
-            ? " — Performance: " + performance
-            : ""
-        )
     );
 
     saveData();
@@ -6686,9 +6729,6 @@ function submitCampaignRecord() {
     document.getElementById("campaignRecordName").value = "";
     document.getElementById("campaignRecordDate").value = "";
 
-    if(document.getElementById("campaignPerformanceText")) {
-        document.getElementById("campaignPerformanceText").value = "";
-    }
 
     message.className = "quick-feedback success";
     message.textContent = "Campaign participation recorded successfully.";
@@ -6737,12 +6777,6 @@ function submitUnitTransfer() {
     const oldUnit=String(person.unit||"").trim();
     if(oldUnit && normalizeRobloxUsername(oldUnit)===normalizeRobloxUsername(newUnit)){ message.className="quick-feedback warning"; message.textContent="User is already assigned to this regiment / unit."; return; }
 
-    const performance =
-    isRecordPerformanceEnabled("unit")
-    ?
-    String(document.getElementById("unitPerformanceText").value || "").trim()
-    :
-    "";
 
     ensureServiceCollections(person);
     const today=getTodayISO();
