@@ -3960,10 +3960,16 @@ async function refreshRobloxAvatar(personID, silent = false) {
 
 
     /*
-       Preferred route:
-       GitHub Pages -> Supabase Edge Function -> Roblox thumbnail API
+       Production route only:
 
-       This avoids browser cross-origin restrictions.
+       GitHub Pages
+            ↓
+       Supabase Edge Function
+            ↓
+       Roblox Thumbnail API
+
+       Do NOT request thumbnails.roblox.com directly from the
+       browser because Safari blocks that request through CORS.
     */
     try {
 
@@ -3972,34 +3978,20 @@ async function refreshRobloxAvatar(personID, silent = false) {
 
     }
 
-    catch(edgeError) {
+    catch(error) {
 
-        console.warn(
-            "Roblox avatar Edge Function unavailable; trying direct Roblox request.",
-            edgeError
+        console.error(
+            "Unable to load Roblox avatar through Supabase Edge Function.",
+            error
         );
 
+        image.removeAttribute("src");
+        image.style.display = "none";
 
-        /*
-           Fallback route.
-           This may work in some browsers/environments, but the
-           Edge Function is the reliable production path.
-        */
-        try {
+        placeholder.textContent = "👤";
+        placeholder.style.display = "block";
 
-            imageUrl =
-            await requestRobloxAvatarDirectly(robloxId);
-
-        }
-
-        catch(directError) {
-
-            console.error(
-                "Unable to load Roblox avatar.",
-                directError
-            );
-
-        }
+        return;
 
     }
 
