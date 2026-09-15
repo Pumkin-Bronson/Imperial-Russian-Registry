@@ -1603,7 +1603,7 @@ CENTRAL REGISTER
 
 <div
 id="personnelResultCount"
-class="personnel-result-count staff-only hidden"
+class="personnel-result-count"
 aria-live="polite">
 0 MATCHED RESULTS
 </div>
@@ -1637,7 +1637,7 @@ oninput="renderPersonnel()">
 </div>
 
 
-<div class="personnel-view-toolbar staff-only hidden">
+<div class="personnel-view-toolbar">
 <button id="personnelCardsViewBtn" class="personnel-view-btn active" type="button" onclick="setPersonnelViewMode('cards')">Record View</button>
 <button id="personnelSheetViewBtn" class="personnel-view-btn" type="button" onclick="setPersonnelViewMode('sheet')">Spreadsheet View</button>
 </div>
@@ -6004,6 +6004,12 @@ function renderUnitRoster() {
             ? "Archived"
             : "Active";
 
+            const memberCount =
+            personnel.filter(person =>
+                normalizeRobloxUsername(person.unit || "") ===
+                normalizeRobloxUsername(unit.title || "")
+            ).length;
+
 
             return `
 
@@ -6024,6 +6030,10 @@ function renderUnitRoster() {
                 </td>
 
                 <td>
+                    <strong>${memberCount}</strong>
+                </td>
+
+                <td>
                     <span class="${
                         status === "Active"
                         ? "unit-status-active"
@@ -6033,12 +6043,10 @@ function renderUnitRoster() {
                     </span>
                 </td>
 
-                <td>
-
-                    ${
-                        userRole === "staff"
-                        ?
-                        `
+                ${
+                    userRole === "staff"
+                    ?
+                    `<td>
                         <div class="unit-action-wrap">
 
                             <button
@@ -6083,12 +6091,10 @@ function renderUnitRoster() {
                             </div>
 
                         </div>
-                        `
-                        :
-                        "—"
-                    }
-
-                </td>
+                    </td>`
+                    :
+                    ""
+                }
 
             </tr>
 
@@ -6101,6 +6107,15 @@ function renderUnitRoster() {
 
 
     function buildUnitSection(title, description, units) {
+
+        const sectionMemberCount =
+        units.reduce((total, unit) => {
+            const count = personnel.filter(person =>
+                normalizeRobloxUsername(person.unit || "") ===
+                normalizeRobloxUsername(unit.title || "")
+            ).length;
+            return total + count;
+        }, 0);
 
         const content =
         units.length === 0
@@ -6126,9 +6141,15 @@ function renderUnitRoster() {
 
                         <th>Record Date</th>
 
+                        <th>Total Members</th>
+
                         <th>Status</th>
 
-                        <th>Actions</th>
+                        ${
+                            userRole === "staff"
+                            ? "<th>Actions</th>"
+                            : ""
+                        }
 
                     </tr>
 
@@ -6156,6 +6177,8 @@ function renderUnitRoster() {
 
                 <div class="person-meta">
                 ${escapeHTML(description)}
+                <br>
+                <strong>Total Members: ${sectionMemberCount}</strong>
                 </div>
 
             </div>
