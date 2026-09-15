@@ -392,6 +392,24 @@ main {
     line-height: 1.3;
 }
 
+let personnelViewMode = "cards";
+function setPersonnelViewMode(mode){
+ personnelViewMode = mode === "sheet" ? "sheet" : "cards";
+ const cards=document.getElementById("personnelCardView"), sheet=document.getElementById("personnelSpreadsheet");
+ const cb=document.getElementById("personnelCardsViewBtn"), sb=document.getElementById("personnelSheetViewBtn");
+ if(cards) cards.classList.toggle("hidden-view",personnelViewMode==="sheet");
+ if(sheet) sheet.classList.toggle("active",personnelViewMode==="sheet");
+ if(cb) cb.classList.toggle("active",personnelViewMode==="cards"); if(sb) sb.classList.toggle("active",personnelViewMode==="sheet");
+ renderPersonnel();
+}
+function renderPersonnelSpreadsheet(rows){
+ const body=document.getElementById("personnelSpreadsheetBody"); if(!body) return;
+ body.innerHTML = rows.length ? rows.map(person=>{
+  const medals=Array.isArray(person.medals)?person.medals.map(m=>m.name||m.title||m).filter(Boolean).join(", "):"";
+  return `<tr><td>${escapeHTML(person.name||"—")}</td><td>@${escapeHTML(person.username||"—")}</td><td>${escapeHTML(person.robloxId||person.robloxID||"—")}</td><td>${escapeHTML(person.rank||"None")}</td><td>${escapeHTML(person.title||"None")}</td><td>${escapeHTML(person.unit||"Unassigned")}</td><td>${escapeHTML(medals||"None")}</td><td>${escapeHTML(person.status||"Active")}</td><td><button class="personnel-sheet-open" type="button" onclick="setPersonnelViewMode('cards');openPassport('${'${escapeJS(person.id)}'}')">Open</button></td></tr>`;
+ }).join("") : `<tr><td colspan="9" class="empty-message">No personnel records match this search.</td></tr>`;
+}
+
 /* =========================================================
    PASSPORT
    ========================================================= */
@@ -791,6 +809,9 @@ main {
         height: 260px;
     }
 }
+
+/* PERSONNEL VIEW SWITCHER + BULK UNIT MEMBERSHIP TRANSFER */
+.personnel-view-toolbar{display:flex;justify-content:flex-end;gap:8px;margin:0 0 14px}.personnel-view-btn{border:1px solid var(--border);background:#fffdf8;padding:8px 13px;font-family:Arial,sans-serif;font-size:12px;font-weight:bold}.personnel-view-btn.active{background:var(--red);color:#fff;border-color:var(--red)}.personnel-spreadsheet{display:none}.personnel-spreadsheet.active{display:block}.personnel-card-view.hidden-view{display:none}.personnel-sheet-table{min-width:1200px}.personnel-sheet-table td,.personnel-sheet-table th{font-family:Arial,sans-serif;font-size:12px;vertical-align:top}.personnel-sheet-open{border:none;background:#e9dfce;padding:6px 9px;font-weight:bold}.unit-membership-transfer-registry{background:var(--cream);border:2px solid #424750;border-radius:14px;padding:34px;margin:0 0 28px}.unit-membership-transfer-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:end}.unit-membership-summary{margin-top:16px;padding:14px 16px;background:#fffdf8;border:1px solid var(--border);font-family:Arial,sans-serif;font-size:13px}@media(max-width:900px){.unit-membership-transfer-grid{grid-template-columns:1fr}.personnel-view-toolbar{justify-content:flex-start}}
 
 /* =========================================================
    TABLES
@@ -1634,6 +1655,12 @@ oninput="renderPersonnel()">
 </div>
 
 
+<div class="personnel-view-toolbar staff-only hidden">
+<button id="personnelCardsViewBtn" class="personnel-view-btn active" type="button" onclick="setPersonnelViewMode('cards')">Record View</button>
+<button id="personnelSheetViewBtn" class="personnel-view-btn" type="button" onclick="setPersonnelViewMode('sheet')">Spreadsheet View</button>
+</div>
+
+<div id="personnelCardView" class="personnel-card-view">
 <div class="registry-layout">
 
 <div id="personnelList" class="personnel-list">
@@ -1648,6 +1675,11 @@ Select a personnel record to open the service passport.
 
 </div>
 
+</div>
+</div>
+
+<div id="personnelSpreadsheet" class="personnel-spreadsheet">
+<div class="table-container"><table class="personnel-sheet-table"><thead><tr><th>Character Name</th><th>Roblox Username</th><th>Roblox ID</th><th>Rank</th><th>Title</th><th>Regiment / Unit</th><th>Medals / Honours</th><th>Status</th><th>Record</th></tr></thead><tbody id="personnelSpreadsheetBody"></tbody></table></div>
 </div>
 
 </section>
@@ -1740,6 +1772,19 @@ Enter
 
 </div>
 
+
+<div class="unit-membership-transfer-registry staff-only hidden">
+<div class="small-title">FORMATION MEMBERSHIP ADMINISTRATION</div>
+<h2>Unit Membership Transfer Registry</h2>
+<p class="quick-recorder-help">Transfer every personnel member currently assigned to one existing regiment / unit into another existing regiment / unit. The source formation remains in the roster and is not archived, restored, renamed or removed.</p>
+<div class="unit-membership-transfer-grid">
+<label>Transfer Members From<select id="bulkUnitTransferSource" onchange="updateBulkUnitTransferRegistry()"></select></label>
+<label>Transfer Members To<select id="bulkUnitTransferTarget" onchange="updateBulkUnitTransferRegistry()"></select></label>
+</div>
+<div id="bulkUnitTransferSummary" class="unit-membership-summary"></div>
+<div id="bulkUnitTransferMessage" class="quick-feedback"></div>
+<button class="primary-btn" type="button" onclick="submitBulkUnitMembershipTransfer()">Transfer All Members</button>
+</div>
 
 <div id="unitRosterTable">
 </div>
@@ -3099,10 +3144,7 @@ function updatePersonnelSearchControls() {
             );
 
             if(unit) {
-                suffix =
-                unit.status === "Archived"
-                ? " — Archived"
-                : " — Active";
+                suffix = " — Commander: " + (unit.commander || "Unassigned") + (unit.status === "Archived" ? " — Archived" : " — Active");
             }
         }
 
@@ -3326,6 +3368,8 @@ function renderPersonnel() {
     .join("")
     :
     `<div class="empty-message">No personnel records match this search.</div>`;
+
+    renderPersonnelSpreadsheet(filtered);
 
 }
 
@@ -6446,7 +6490,7 @@ function populateQuickUnitAssignment() {
     activeUnits
     .map(unit => `
         <option value="${escapeHTML(unit.title)}">
-        ${escapeHTML(unit.title)}
+        ${escapeHTML(unit.title)} — Commander: ${escapeHTML(unit.commander || "Unassigned")}
         </option>
     `)
     .join("");
@@ -7320,6 +7364,28 @@ function submitCampaignRecord() {
 }
 
 
+function unitOptionLabel(unit){ return (unit.title||"Unnamed Unit") + " — Commander: " + (unit.commander||"Unassigned") + (unit.status==="Archived" ? " — Archived" : " — Active"); }
+function renderBulkUnitTransferRegistry(){
+ const source=document.getElementById("bulkUnitTransferSource"), target=document.getElementById("bulkUnitTransferTarget"); if(!source||!target)return;
+ const ps=source.value, pt=target.value; const units=unitRoster.slice();
+ const opts=units.map(u=>`<option value="${escapeHTML(u.id)}">${escapeHTML(unitOptionLabel(u))}</option>`).join("");
+ source.innerHTML='<option value="">Select source regiment / unit...</option>'+opts; target.innerHTML='<option value="">Select destination regiment / unit...</option>'+opts;
+ if(units.some(u=>u.id===ps))source.value=ps;if(units.some(u=>u.id===pt))target.value=pt; updateBulkUnitTransferRegistry();
+}
+function updateBulkUnitTransferRegistry(){
+ const s=document.getElementById("bulkUnitTransferSource"), t=document.getElementById("bulkUnitTransferTarget"), box=document.getElementById("bulkUnitTransferSummary"), msg=document.getElementById("bulkUnitTransferMessage"); if(!s||!t||!box)return;
+ const source=unitRoster.find(u=>u.id===s.value), target=unitRoster.find(u=>u.id===t.value); const members=source?personnel.filter(p=>normalizeRobloxUsername(p.unit||"")===normalizeRobloxUsername(source.title||"")):[];
+ box.innerHTML=source?`<strong>${members.length}</strong> member${members.length===1?"":"s"} currently assigned to <strong>${escapeHTML(source.title)}</strong>.${target?" Destination: <strong>"+escapeHTML(target.title)+"</strong>.":""}`:"Select a source regiment / unit to see its current membership."; if(msg){msg.textContent="";msg.className="quick-feedback";}
+}
+function submitBulkUnitMembershipTransfer(){
+ if(userRole!=="staff")return; const s=document.getElementById("bulkUnitTransferSource"),t=document.getElementById("bulkUnitTransferTarget"),msg=document.getElementById("bulkUnitTransferMessage"); const source=unitRoster.find(u=>u.id===s.value),target=unitRoster.find(u=>u.id===t.value);
+ if(!source||!target){msg.className="quick-feedback warning";msg.textContent="Please select both the source and destination regiment / unit.";return;} if(source.id===target.id){msg.className="quick-feedback warning";msg.textContent="Source and destination must be different regiments / units.";return;}
+ const members=personnel.filter(p=>normalizeRobloxUsername(p.unit||"")===normalizeRobloxUsername(source.title||"")); if(!members.length){msg.className="quick-feedback warning";msg.textContent="The selected source regiment / unit has no current members to transfer.";return;}
+ if(!confirm(`Transfer all ${members.length} member${members.length===1?"":"s"} from ${source.title} to ${target.title}? The source regiment / unit will remain in the roster.`))return; const today=getTodayISO();
+ members.forEach(person=>{ensureServiceCollections(person);person.unit=target.title;if(!Array.isArray(person.unitHistory))person.unitHistory=[];person.unitHistory.push({unit:target.title,previousUnit:source.title,date:today,reason:"Unit membership transfer"});person.serviceEvents.push({type:"unit_transfer",date:today,item:source.title+" → "+target.title,reason:"Transferred with unit membership registry"});});
+ addAudit("Transferred all "+members.length+" members from "+source.title+" to "+target.title); saveData(); renderEverything(); const m=document.getElementById("bulkUnitTransferMessage");if(m){m.className="quick-feedback success";m.textContent=members.length+" members transferred successfully. The source formation remains in the roster.";}
+}
+
 /* =========================================================
    UNIT TRANSFER REGISTRY
    ========================================================= */
@@ -7331,7 +7397,7 @@ function renderUnitTransferRegistry() {
     const previousTarget=targetSelect.value;
     personSelect.innerHTML=personnel.slice().sort((a,b)=>String(a.username||"").localeCompare(String(b.username||""))).map(person=>`<option value="${escapeHTML(person.id)}">@${escapeHTML(person.username || person.name || person.id)}</option>`).join("");
     const activeUnits=unitRoster.filter(unit=>unit.status!=="Archived").slice().sort((a,b)=>String(a.title||"").localeCompare(String(b.title||"")));
-    targetSelect.innerHTML='<option value="">Select active regiment / unit...</option>'+activeUnits.map(unit=>`<option value="${escapeHTML(unit.title)}">${escapeHTML(unit.title)}</option>`).join("");
+    targetSelect.innerHTML='<option value="">Select active regiment / unit...</option>'+activeUnits.map(unit=>`<option value="${escapeHTML(unit.title)}">${escapeHTML(unit.title)} — Commander: ${escapeHTML(unit.commander || "Unassigned")}</option>`).join("");
     if(previousPerson && personnel.some(person=>person.id===previousPerson)) personSelect.value=previousPerson;
     if(previousTarget && activeUnits.some(unit=>unit.title===previousTarget)) targetSelect.value=previousTarget;
     updateUnitTransferRegistry();
@@ -8585,6 +8651,8 @@ function renderEverything() {
     populateQuickUnitAssignment();
 
     renderUnitTransferRegistry();
+
+    renderBulkUnitTransferRegistry();
 
     renderCampaignRecordRegistry();
 
