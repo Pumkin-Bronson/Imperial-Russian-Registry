@@ -392,24 +392,6 @@ main {
     line-height: 1.3;
 }
 
-let personnelViewMode = "cards";
-function setPersonnelViewMode(mode){
- personnelViewMode = mode === "sheet" ? "sheet" : "cards";
- const cards=document.getElementById("personnelCardView"), sheet=document.getElementById("personnelSpreadsheet");
- const cb=document.getElementById("personnelCardsViewBtn"), sb=document.getElementById("personnelSheetViewBtn");
- if(cards) cards.classList.toggle("hidden-view",personnelViewMode==="sheet");
- if(sheet) sheet.classList.toggle("active",personnelViewMode==="sheet");
- if(cb) cb.classList.toggle("active",personnelViewMode==="cards"); if(sb) sb.classList.toggle("active",personnelViewMode==="sheet");
- renderPersonnel();
-}
-function renderPersonnelSpreadsheet(rows){
- const body=document.getElementById("personnelSpreadsheetBody"); if(!body) return;
- body.innerHTML = rows.length ? rows.map(person=>{
-  const medals=Array.isArray(person.medals)?person.medals.map(m=>m.name||m.title||m).filter(Boolean).join(", "):"";
-  return `<tr><td>${escapeHTML(person.name||"—")}</td><td>@${escapeHTML(person.username||"—")}</td><td>${escapeHTML(person.robloxId||person.robloxID||"—")}</td><td>${escapeHTML(person.rank||"None")}</td><td>${escapeHTML(person.title||"None")}</td><td>${escapeHTML(person.unit||"Unassigned")}</td><td>${escapeHTML(medals||"None")}</td><td>${escapeHTML(person.status||"Active")}</td><td><button class="personnel-sheet-open" type="button" onclick="setPersonnelViewMode('cards');openPassport('${'${escapeJS(person.id)}'}')">Open</button></td></tr>`;
- }).join("") : `<tr><td colspan="9" class="empty-message">No personnel records match this search.</td></tr>`;
-}
-
 /* =========================================================
    PASSPORT
    ========================================================= */
@@ -1661,7 +1643,7 @@ oninput="renderPersonnel()">
 </div>
 
 <div id="personnelCardView" class="personnel-card-view">
-<div class="registry-layout">
+<div id="personnelCardView" class="registry-layout personnel-card-view">
 
 <div id="personnelList" class="personnel-list">
 </div>
@@ -3190,6 +3172,67 @@ function updatePersonnelSearchControls() {
 }
 
 
+
+let personnelViewMode = "cards";
+
+function setPersonnelViewMode(mode) {
+    personnelViewMode = mode === "sheet" ? "sheet" : "cards";
+
+    const cards = document.getElementById("personnelCardView");
+    const sheet = document.getElementById("personnelSpreadsheet");
+    const cardsButton = document.getElementById("personnelCardsViewBtn");
+    const sheetButton = document.getElementById("personnelSheetViewBtn");
+
+    if(cards) cards.classList.toggle("hidden-view", personnelViewMode === "sheet");
+    if(sheet) sheet.classList.toggle("active", personnelViewMode === "sheet");
+    if(cardsButton) cardsButton.classList.toggle("active", personnelViewMode === "cards");
+    if(sheetButton) sheetButton.classList.toggle("active", personnelViewMode === "sheet");
+}
+
+function openPersonnelFromSpreadsheet(personID) {
+    setPersonnelViewMode("cards");
+    openPassport(personID);
+}
+
+function renderPersonnelSpreadsheet(rows) {
+    const body = document.getElementById("personnelSpreadsheetBody");
+    if(!body) return;
+
+    if(!rows.length) {
+        body.innerHTML = `<tr><td colspan="9" class="empty-message">No personnel records match this search.</td></tr>`;
+        return;
+    }
+
+    body.innerHTML = rows.map(person => {
+        const medals = Array.isArray(person.medals)
+            ? person.medals
+                .map(medal => typeof medal === "string" ? medal : (medal.name || medal.title || medal.item || ""))
+                .filter(Boolean)
+                .join(", ")
+            : "";
+
+        return `
+        <tr>
+            <td>${escapeHTML(person.name || "—")}</td>
+            <td>@${escapeHTML(person.username || "—")}</td>
+            <td>${escapeHTML(String(person.robloxId || person.robloxID || "—"))}</td>
+            <td>${escapeHTML(person.rank || "None")}</td>
+            <td>${escapeHTML(person.title || "None")}</td>
+            <td>${escapeHTML(person.unit || "Unassigned")}</td>
+            <td>${escapeHTML(medals || "None")}</td>
+            <td>${escapeHTML(person.status || "Active")}</td>
+            <td>
+                <button
+                    class="personnel-sheet-open"
+                    type="button"
+                    onclick="openPersonnelFromSpreadsheet('${escapeJS(person.id)}')">
+                    Open
+                </button>
+            </td>
+        </tr>`;
+    }).join("");
+}
+
 function renderPersonnel() {
 
     const list =
@@ -3370,6 +3413,7 @@ function renderPersonnel() {
     `<div class="empty-message">No personnel records match this search.</div>`;
 
     renderPersonnelSpreadsheet(filtered);
+    setPersonnelViewMode(personnelViewMode);
 
 }
 
@@ -7378,7 +7422,7 @@ function updateBulkUnitTransferRegistry(){
  box.innerHTML=source?`<strong>${members.length}</strong> member${members.length===1?"":"s"} currently assigned to <strong>${escapeHTML(source.title)}</strong>.${target?" Destination: <strong>"+escapeHTML(target.title)+"</strong>.":""}`:"Select a source regiment / unit to see its current membership."; if(msg){msg.textContent="";msg.className="quick-feedback";}
 }
 function submitBulkUnitMembershipTransfer(){
- if(userRole!=="staff")return; const s=document.getElementById("bulkUnitTransferSource"),t=document.getElementById("bulkUnitTransferTarget"),msg=document.getElementById("bulkUnitTransferMessage"); const source=unitRoster.find(u=>u.id===s.value),target=unitRoster.find(u=>u.id===t.value);
+ if(userRole !== "staff" && userRole !== "admin") return; const s=document.getElementById("bulkUnitTransferSource"),t=document.getElementById("bulkUnitTransferTarget"),msg=document.getElementById("bulkUnitTransferMessage"); const source=unitRoster.find(u=>u.id===s.value),target=unitRoster.find(u=>u.id===t.value);
  if(!source||!target){msg.className="quick-feedback warning";msg.textContent="Please select both the source and destination regiment / unit.";return;} if(source.id===target.id){msg.className="quick-feedback warning";msg.textContent="Source and destination must be different regiments / units.";return;}
  const members=personnel.filter(p=>normalizeRobloxUsername(p.unit||"")===normalizeRobloxUsername(source.title||"")); if(!members.length){msg.className="quick-feedback warning";msg.textContent="The selected source regiment / unit has no current members to transfer.";return;}
  if(!confirm(`Transfer all ${members.length} member${members.length===1?"":"s"} from ${source.title} to ${target.title}? The source regiment / unit will remain in the roster.`))return; const today=getTodayISO();
