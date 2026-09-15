@@ -7426,7 +7426,24 @@ function submitBulkUnitMembershipTransfer(){
  if(!source||!target){msg.className="quick-feedback warning";msg.textContent="Please select both the source and destination regiment / unit.";return;} if(source.id===target.id){msg.className="quick-feedback warning";msg.textContent="Source and destination must be different regiments / units.";return;}
  const members=personnel.filter(p=>normalizeRobloxUsername(p.unit||"")===normalizeRobloxUsername(source.title||"")); if(!members.length){msg.className="quick-feedback warning";msg.textContent="The selected source regiment / unit has no current members to transfer.";return;}
  if(!confirm(`Transfer all ${members.length} member${members.length===1?"":"s"} from ${source.title} to ${target.title}? The source regiment / unit will remain in the roster.`))return; const today=getTodayISO();
- members.forEach(person=>{ensureServiceCollections(person);person.unit=target.title;if(!Array.isArray(person.unitHistory))person.unitHistory=[];person.unitHistory.push({unit:target.title,previousUnit:source.title,date:today,reason:"Unit membership transfer"});person.serviceEvents.push({type:"unit_transfer",date:today,item:source.title+" → "+target.title,reason:"Transferred with unit membership registry"});});
+ members.forEach(person=>{
+    ensureServiceCollections(person);
+    const previousUnit=String(person.unit||source.title||"Unassigned").trim();
+    person.unit=target.title;
+    if(!Array.isArray(person.unitHistory)) person.unitHistory=[];
+    person.unitHistory.push({
+        unit:target.title,
+        previousUnit:previousUnit,
+        date:today,
+        reason:"Unit membership transfer"
+    });
+    person.serviceEvents.push({
+        type:"unit_transfer",
+        date:today,
+        item:previousUnit+" → "+target.title,
+        reason:"Transferred with Unit Membership Transfer Registry"
+    });
+});
  addAudit("Transferred all "+members.length+" members from "+source.title+" to "+target.title); saveData(); renderEverything(); const m=document.getElementById("bulkUnitTransferMessage");if(m){m.className="quick-feedback success";m.textContent=members.length+" members transferred successfully. The source formation remains in the roster.";}
 }
 
@@ -7441,9 +7458,9 @@ function renderUnitTransferRegistry() {
     const previousTarget=targetSelect.value;
     personSelect.innerHTML=personnel.slice().sort((a,b)=>String(a.username||"").localeCompare(String(b.username||""))).map(person=>`<option value="${escapeHTML(person.id)}">@${escapeHTML(person.username || person.name || person.id)}</option>`).join("");
     const activeUnits=unitRoster.filter(unit=>unit.status!=="Archived").slice().sort((a,b)=>String(a.title||"").localeCompare(String(b.title||"")));
-    targetSelect.innerHTML='<option value="">Select active regiment / unit...</option>'+activeUnits.map(unit=>`<option value="${escapeHTML(unit.title)}">${escapeHTML(unit.title)} — Commander: ${escapeHTML(unit.commander || "Unassigned")}</option>`).join("");
+    targetSelect.innerHTML='<option value="">Select active regiment / unit...</option>'+activeUnits.map(unit=>`<option value="${escapeHTML(unit.id)}">${escapeHTML(unit.title)} — Commander: ${escapeHTML(unit.commander || "Unassigned")}</option>`).join("");
     if(previousPerson && personnel.some(person=>person.id===previousPerson)) personSelect.value=previousPerson;
-    if(previousTarget && activeUnits.some(unit=>unit.title===previousTarget)) targetSelect.value=previousTarget;
+    if(previousTarget && activeUnits.some(unit=>String(unit.id)===String(previousTarget))) targetSelect.value=previousTarget;
     updateUnitTransferRegistry();
 }
 
@@ -7459,29 +7476,91 @@ function updateUnitTransferRegistry() {
 }
 
 function submitUnitTransfer() {
-    if(userRole!=="staff") return;
-    const personID=document.getElementById("unitTransferPerson").value;
-    const newUnit=document.getElementById("unitTransferTarget").value;
-    const message=document.getElementById("unitTransferMessage");
-    const person=personnel.find(item=>item.id===personID);
-    if(!person){ message.className="quick-feedback warning"; message.textContent="Please select a personnel record."; return; }
-    if(!newUnit){ message.className="quick-feedback warning"; message.textContent="Please select the destination regiment / unit."; return; }
-    const destination=unitRoster.find(unit=>unit.status!=="Archived" && normalizeRobloxUsername(unit.title)===normalizeRobloxUsername(newUnit));
-    if(!destination){ message.className="quick-feedback warning"; message.textContent="The selected destination is not an active regiment / unit."; return; }
-    const oldUnit=String(person.unit||"").trim();
-    if(oldUnit && normalizeRobloxUsername(oldUnit)===normalizeRobloxUsername(newUnit)){ message.className="quick-feedback warning"; message.textContent="User is already assigned to this regiment / unit."; return; }
+    if(userRole !== "staff" && userRole !== "admin") return;
 
+    const personID = document.getElementById("unitTransferPerson").value;
+    const targetValue = document.getElementById("unitTransferTarget").value;
+    const message = document.getElementById("unitTransferMessage");
+    const person = personnel.find(item => String(item.id) === String(personID));
+
+    if(!person){
+        message.className="quick-feedback warning";
+        message.textContent="Please select a personnel record.";
+        return;
+    }
+
+    if(!targetValue){
+        message.className="quick-feedback warning";
+        message.textContent="Please select the destination regiment / unit.";
+        return;
+    }
+
+    const destination = unitRoster.find(unit =>
+        unit.status !== "Archived" &&
+        (
+            String(unit.id) === String(targetValue) ||
+            normalizeRobloxUsername(unit.title || "") === normalizeRobloxUsername(targetValue)
+        )
+    );
+
+    if(!destination){
+        message.className="quick-feedback warning";
+        message.textContent="The selected destination is not an active regiment / unit.";
+        return;
+    }
+
+    const oldUnit = String(person.unit || "").trim();
+    const newUnit = String(destination.title || "").trim();
+
+    if(oldUnit && normalizeRobloxUsername(oldUnit) === normalizeRobloxUsername(newUnit)){
+        message.className="quick-feedback warning";
+        message.textContent="User is already assigned to this regiment / unit.";
+        return;
+    }
 
     ensureServiceCollections(person);
-    const today=getTodayISO();
-    person.unit=newUnit;
-    if(!Array.isArray(person.unitHistory)) person.unitHistory=[];
-    person.unitHistory.push({unit:newUnit,previousUnit:oldUnit||"Unassigned",date:today,reason:"Unit transfer"});
-    person.serviceEvents.push({type:"unit_transfer",date:today,item:(oldUnit||"Unassigned")+" → "+newUnit,reason:"Transferred regiment / unit"});
-    addAudit("Transferred "+person.username+" from "+(oldUnit||"Unassigned")+" to "+newUnit);
-    saveData(); selectedPerson=person.id; renderEverything(); openPassport(person.id);
-    const refreshedMessage=document.getElementById("unitTransferMessage");
-    if(refreshedMessage){ refreshedMessage.className="quick-feedback success"; refreshedMessage.textContent="Unit transfer recorded successfully."; }
+    const today = getTodayISO();
+
+    // Update the CURRENT profile first.
+    person.unit = newUnit;
+
+    // Keep a separate unit-membership history.
+    if(!Array.isArray(person.unitHistory)) person.unitHistory = [];
+    person.unitHistory.push({
+        unit: newUnit,
+        previousUnit: oldUnit || "Unassigned",
+        date: today,
+        reason: oldUnit ? "Unit transfer" : "Unit assignment"
+    });
+
+    // Add the visible Service History event.
+    person.serviceEvents.push({
+        type: oldUnit ? "unit_transfer" : "unit_assignment",
+        date: today,
+        item: oldUnit ? (oldUnit + " → " + newUnit) : newUnit,
+        reason: oldUnit ? "Transferred regiment / unit" : "Assigned to regiment / unit"
+    });
+
+    addAudit(
+        (oldUnit ? "Transferred " : "Assigned ") +
+        person.username +
+        (oldUnit ? (" from " + oldUnit + " to " + newUnit) : (" to " + newUnit))
+    );
+
+    // Persist before any re-render.
+    saveData();
+    selectedPerson = person.id;
+
+    renderEverything();
+    openPassport(person.id);
+
+    const refreshedMessage = document.getElementById("unitTransferMessage");
+    if(refreshedMessage){
+        refreshedMessage.className="quick-feedback success";
+        refreshedMessage.textContent = oldUnit
+            ? "Unit transfer recorded successfully: " + oldUnit + " → " + newUnit + "."
+            : "Unit assignment recorded successfully: " + newUnit + ".";
+    }
 }
 
 let pendingUsernameUpdateID=null;
