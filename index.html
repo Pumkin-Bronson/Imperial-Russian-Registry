@@ -2591,6 +2591,7 @@ function enterGuest() {
     showPage("registryPage");
 
     renderEverything();
+    loadRegistryUpdatesFromSupabase();
 
 }
 
@@ -2778,6 +2779,7 @@ async function staffLogin() {
     showPage("registryPage");
 
     renderEverything();
+    await loadRegistryUpdatesFromSupabase();
 
 }
 
@@ -8814,7 +8816,7 @@ function escapeHTML(value) {
 
 
 /* =========================================================
-   PUBLIC UPDATES / VERSION
+   PUBLIC UPDATES / VERSION — SUPABASE SYNC
    ========================================================= */
 
 function escapeRegistryHTML(value) {
@@ -8826,20 +8828,92 @@ function escapeRegistryHTML(value) {
         .replaceAll("'", "&#039;");
 }
 
+function setUpdateEditorMessage(message, type = "") {
+    const box = document.getElementById("updateEditorMessage");
+    if(!box) return;
+    box.className = "quick-feedback" + (type ? " " + type : "");
+    box.textContent = message || "";
+}
+
+function normalizeRegistryUpdateRow(row) {
+    const payload = row && row.data && typeof row.data === "object" ? row.data : {};
+    return {
+        id: String(row?.id || payload.id || ""),
+        title: payload.title || "Registry Update",
+        body: payload.body || "",
+        version: payload.version || "",
+        date: payload.date || "",
+        updated_at: row?.updated_at || ""
+    };
+}
+
+async function loadRegistryUpdatesFromSupabase({silent = false} = {}) {
+    try {
+        const [
+            { data: updateRows, error: updatesError },
+            { data: settingRow, error: settingError }
+        ] = await Promise.all([
+            supabaseClient
+                .from("registry_updates")
+                .select("id, data, updated_at")
+                .order("updated_at", { ascending: false }),
+            supabaseClient
+                .from("registry_settings")
+                .select("setting_key, setting_value, updated_at")
+                .eq("setting_key", "current_version")
+                .maybeSingle()
+        ]);
+
+        if(updatesError) throw updatesError;
+        if(settingError) throw settingError;
+
+        registryUpdates = (updateRows || []).map(normalizeRegistryUpdateRow);
+
+        if(settingRow && settingRow.setting_value) {
+            siteVersion = settingRow.setting_value;
+        }
+
+        // Local storage is now only a browser cache for these public values.
+        localStorage.setItem("vamRegistryUpdates", JSON.stringify(registryUpdates));
+        localStorage.setItem("vamSiteVersion", siteVersion);
+
+        renderRegistryUpdates();
+        return true;
+    }
+    catch(error) {
+        console.error("Could not load public registry updates from Supabase:", error);
+        if(!silent) {
+            setUpdateEditorMessage(
+                "Could not load Updates from Supabase. The browser may be showing its last cached copy.",
+                "warning"
+            );
+        }
+        renderRegistryUpdates();
+        return false;
+    }
+}
+
 function renderRegistryUpdates() {
     const list = document.getElementById("publicUpdatesList");
     const badge = document.getElementById("siteVersionBadge");
     const versionInput = document.getElementById("siteVersionInput");
 
     if(badge) badge.textContent = "Version " + (siteVersion || "—");
-    if(versionInput && userRole === "staff" && staffRole === "admin") {
+
+    if(
+        versionInput
+        && userRole === "staff"
+        && staffRole === "admin"
+        && !document.getElementById("updateAdminEditor")?.dataset.editingId
+    ) {
         versionInput.value = siteVersion || "";
     }
 
     if(!list) return;
 
     if(!registryUpdates.length) {
-        list.innerHTML = '<div class="empty-message">No public updates have been published yet.</div>';
+        list.innerHTML =
+            '<div class="empty-message">No public updates have been published yet.</div>';
         return;
     }
 
@@ -8850,89 +8924,197 @@ function renderRegistryUpdates() {
             <h3>${escapeRegistryHTML(update.title || "Registry Update")}</h3>
             <div class="update-entry-meta">${escapeRegistryHTML(update.date || "")}${update.version ? " • Version " + escapeRegistryHTML(update.version) : ""}</div>
             <div class="update-entry-body">${escapeRegistryHTML(update.body || "")}</div>
-            ${canEdit ? `<div class="update-actions"><button class="secondary-btn" type="button" onclick="editRegistryUpdate('${update.id}')">Edit</button><button class="danger-btn" type="button" onclick="deleteRegistryUpdate('${update.id}')">Delete</button></div>` : ""}
+            ${canEdit ? `<div class="update-actions"><button class="secondary-btn" type="button" onclick="editRegistryUpdate('${escapeJS(update.id)}')">Edit</button><button class="danger-btn" type="button" onclick="deleteRegistryUpdate('${escapeJS(update.id)}')">Delete</button></div>` : ""}
         </article>`;
     }).join("");
 }
 
-function publishRegistryUpdate() {
+async function publishRegistryUpdate() {
     if(userRole !== "staff" || staffRole !== "admin") return;
 
     const title = document.getElementById("updateTitleInput").value.trim();
     const body = document.getElementById("updateBodyInput").value.trim();
     const version = document.getElementById("siteVersionInput").value.trim();
-    const message = document.getElementById("updateEditorMessage");
 
     if(!title || !body) {
-        message.className = "quick-feedback warning";
-        message.textContent = "Enter both an update title and update content.";
+        setUpdateEditorMessage("Enter both an update title and update content.", "warning");
         return;
     }
 
-    if(version) siteVersion = version;
+    const editor = document.getElementById("updateAdminEditor");
+    const editingId = editor.dataset.editingId || "";
+    const updateId = editingId || ("UPD-" + Date.now());
+    const displayDate = new Date().toLocaleDateString(
+        "en-GB",
+        {day:"2-digit", month:"long", year:"numeric"}
+    );
 
-    const editingId = document.getElementById("updateAdminEditor").dataset.editingId;
-    if(editingId) {
-        const existing = registryUpdates.find(item => item.id === editingId);
-        if(existing) {
-            existing.title = title;
-            existing.body = body;
-            existing.version = siteVersion;
-            existing.date = new Date().toLocaleDateString("en-GB", {day:"2-digit",month:"long",year:"numeric"});
+    const payload = {
+        id: updateId,
+        title,
+        body,
+        version: version || siteVersion || "",
+        date: displayDate
+    };
+
+    setUpdateEditorMessage(
+        editingId ? "Saving update to Supabase..." : "Publishing update to Supabase..."
+    );
+
+    try {
+        const { error: updateError } = await supabaseClient
+            .from("registry_updates")
+            .upsert(
+                {
+                    id: updateId,
+                    data: payload,
+                    updated_at: new Date().toISOString()
+                },
+                { onConflict: "id" }
+            );
+
+        if(updateError) throw updateError;
+
+        if(version) {
+            const { error: versionError } = await supabaseClient
+                .from("registry_settings")
+                .upsert(
+                    {
+                        setting_key: "current_version",
+                        setting_value: version,
+                        updated_at: new Date().toISOString()
+                    },
+                    { onConflict: "setting_key" }
+                );
+
+            if(versionError) throw versionError;
+            siteVersion = version;
         }
-        delete document.getElementById("updateAdminEditor").dataset.editingId;
-    } else {
-        registryUpdates.unshift({
-            id: "UPD-" + Date.now(),
-            title,
-            body,
-            version: siteVersion,
-            date: new Date().toLocaleDateString("en-GB", {day:"2-digit",month:"long",year:"numeric"})
-        });
-    }
 
-    document.getElementById("updateTitleInput").value = "";
-    document.getElementById("updateBodyInput").value = "";
-    saveData();
-    renderRegistryUpdates();
-    message.className = "quick-feedback success";
-    message.textContent = "Public update published.";
+        delete editor.dataset.editingId;
+        document.getElementById("updateTitleInput").value = "";
+        document.getElementById("updateBodyInput").value = "";
+
+        const loaded = await loadRegistryUpdatesFromSupabase({silent: true});
+        if(!loaded) throw new Error("The update was sent, but the refreshed Supabase data could not be loaded.");
+
+        addAudit(
+            (editingId ? "Edited" : "Published")
+            + " public registry update "
+            + title
+        );
+        saveData();
+        renderAudit();
+
+        setUpdateEditorMessage(
+            editingId ? "Public update saved to Supabase." : "Public update published to Supabase.",
+            "success"
+        );
+    }
+    catch(error) {
+        console.error("Could not publish registry update:", error);
+        setUpdateEditorMessage(
+            "Supabase did not confirm the update. Nothing has been treated as successfully published. "
+            + (error?.message || ""),
+            "warning"
+        );
+    }
 }
 
 function editRegistryUpdate(id) {
     if(userRole !== "staff" || staffRole !== "admin") return;
+
     const update = registryUpdates.find(item => item.id === id);
     if(!update) return;
+
     document.getElementById("updateTitleInput").value = update.title || "";
     document.getElementById("updateBodyInput").value = update.body || "";
-    document.getElementById("siteVersionInput").value = update.version || siteVersion || "";
+    document.getElementById("siteVersionInput").value =
+        update.version || siteVersion || "";
+
     document.getElementById("updateAdminEditor").dataset.editingId = id;
-    document.getElementById("updateEditorMessage").textContent = "Editing selected update. Press Publish Update to save changes.";
+    setUpdateEditorMessage(
+        "Editing selected update. Press Publish Update to save the changes to Supabase."
+    );
 }
 
-function deleteRegistryUpdate(id) {
+async function deleteRegistryUpdate(id) {
     if(userRole !== "staff" || staffRole !== "admin") return;
-    if(!confirm("Delete this public update?")) return;
-    registryUpdates = registryUpdates.filter(item => item.id !== id);
-    saveData();
-    renderRegistryUpdates();
+    if(!confirm("Delete this public update from Supabase?")) return;
+
+    setUpdateEditorMessage("Deleting update from Supabase...");
+
+    try {
+        const { error } = await supabaseClient
+            .from("registry_updates")
+            .delete()
+            .eq("id", id);
+
+        if(error) throw error;
+
+        const loaded = await loadRegistryUpdatesFromSupabase({silent: true});
+        if(!loaded) throw new Error("The delete was sent, but the refreshed Supabase data could not be loaded.");
+
+        addAudit("Deleted public registry update " + id);
+        saveData();
+        renderAudit();
+        setUpdateEditorMessage("Public update deleted from Supabase.", "success");
+    }
+    catch(error) {
+        console.error("Could not delete registry update:", error);
+        setUpdateEditorMessage(
+            "Supabase did not confirm the deletion. "
+            + (error?.message || ""),
+            "warning"
+        );
+    }
 }
 
-function saveWebsiteVersion() {
+async function saveWebsiteVersion() {
     if(userRole !== "staff" || staffRole !== "admin") return;
+
     const input = document.getElementById("siteVersionInput");
-    const message = document.getElementById("updateEditorMessage");
     const value = input.value.trim();
+
     if(!value) {
-        message.className = "quick-feedback warning";
-        message.textContent = "Enter a version number first.";
+        setUpdateEditorMessage("Enter a version number first.", "warning");
         return;
     }
-    siteVersion = value;
-    saveData();
-    renderRegistryUpdates();
-    message.className = "quick-feedback success";
-    message.textContent = "Website version updated.";
+
+    setUpdateEditorMessage("Saving website version to Supabase...");
+
+    try {
+        const { error } = await supabaseClient
+            .from("registry_settings")
+            .upsert(
+                {
+                    setting_key: "current_version",
+                    setting_value: value,
+                    updated_at: new Date().toISOString()
+                },
+                { onConflict: "setting_key" }
+            );
+
+        if(error) throw error;
+
+        siteVersion = value;
+        localStorage.setItem("vamSiteVersion", siteVersion);
+        renderRegistryUpdates();
+
+        addAudit("Changed website version to " + value);
+        saveData();
+        renderAudit();
+
+        setUpdateEditorMessage("Website version saved to Supabase.", "success");
+    }
+    catch(error) {
+        console.error("Could not save website version:", error);
+        setUpdateEditorMessage(
+            "Supabase did not confirm the version change. "
+            + (error?.message || ""),
+            "warning"
+        );
+    }
 }
 
 
@@ -9091,12 +9273,13 @@ async function restoreStaffSession() {
     showPage("registryPage");
 
     renderEverything();
+    await loadRegistryUpdatesFromSupabase();
 
 }
 
 
 renderEverything();
-
+loadRegistryUpdatesFromSupabase({silent: true});
 restoreStaffSession();
 
 
