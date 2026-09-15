@@ -3551,16 +3551,12 @@ function renderPersonnel() {
         onclick="openPassport('${escapeJS(person.id)}')">
 
             <div class="person-name">
-            ${escapeHTML(person.name)}
+            ${escapeHTML(person.username)}
             </div>
 
             <div class="person-meta">
 
             ${escapeHTML(person.rank)}
-
-            •
-
-            @${escapeHTML(person.username)}
 
             ${
                 person.title
