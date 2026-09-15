@@ -3786,7 +3786,8 @@ async function requestRobloxAvatarViaEdgeFunction(robloxId) {
             },
             body: JSON.stringify({
                 robloxId: robloxId
-            })
+            }),
+            cache: "no-store"
         }
     );
 
@@ -3811,29 +3812,26 @@ async function requestRobloxAvatarViaEdgeFunction(robloxId) {
     }
 
 
-    const result =
-    await response.json();
+    const blob =
+    await response.blob();
 
 
     if(
-        !result
+        !blob
         ||
-        !result.imageUrl
+        !String(blob.type || "").startsWith("image/")
     ) {
 
         throw new Error(
-            result && result.error
-            ? result.error
-            : "No Roblox avatar image was returned."
+            "Supabase avatar proxy did not return an image."
         );
 
     }
 
 
-    return result.imageUrl;
+    return URL.createObjectURL(blob);
 
 }
-
 
 async function requestRobloxAvatarDirectly(robloxId) {
 
@@ -4051,14 +4049,7 @@ async function refreshRobloxAvatar(personID, silent = false) {
        this profile is refreshed. The Roblox ID remains the stable
        identity; the image itself is never stored in the registry.
     */
-    image.src =
-    imageUrl
-    +
-    (imageUrl.includes("?") ? "&" : "?")
-    +
-    "registryRefresh="
-    +
-    Date.now();
+    image.src = imageUrl;
 
 
     startRobloxAvatarAutoRefresh(personID);
