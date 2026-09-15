@@ -1338,6 +1338,11 @@ th {
 }
 
 /* =========================================================
+   STAFF REVIEW / FLAG SYSTEM
+   ========================================================= */
+.flag-record-btn{margin-top:10px;border:1px solid var(--red);background:#fff8f6;color:var(--dark-red);padding:8px 12px;font-family:Arial,sans-serif;font-size:12px;font-weight:bold}.profile-review-status{margin-top:10px;padding:9px 12px;border:1px solid #b48b54;background:#fff6df;color:#7a4d00;font-family:Arial,sans-serif;font-size:12px;font-weight:bold}.review-queue{background:var(--light-cream);border:1px solid var(--gold);padding:28px}.review-card{border:1px solid var(--border);background:#fffdf8;padding:18px;margin-top:14px}.review-card-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.review-status{font-family:Arial,sans-serif;font-size:11px;font-weight:bold;text-transform:uppercase;color:var(--red)}.review-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.review-note{margin-top:10px;padding:10px;background:#f5eee2;border-left:3px solid var(--gold);font-family:Arial,sans-serif;font-size:12px}.account-management{margin-top:0}.flag-target-summary{margin-top:10px;padding:10px;border:1px solid var(--border);background:#fffdf8;font-family:Arial,sans-serif;font-size:12px}
+
+/* =========================================================
    MOBILE
    ========================================================= */
 
@@ -1577,6 +1582,10 @@ class="tab-button staff-only hidden"
 onclick="openTab('staff',this)">
 Staff Desk
 </button>
+
+<button id="reviewTabButton" class="tab-button admin-only hidden" onclick="openTab('review',this)">Review Queue</button>
+
+<button id="accountsTabButton" class="tab-button admin-only hidden" onclick="openTab('accounts',this)">Staff Account Management</button>
 
 </nav>
 
@@ -2078,8 +2087,31 @@ The selected date and note will be stored with the rank, medal or title record.
 </div>
 
 
-<!-- ADMIN-ONLY STAFF ACCOUNT MANAGEMENT -->
+<div class="audit-card">
 
+<h2>Registry Action Log</h2>
+
+<div id="auditLog">
+</div>
+
+</div>
+
+</section>
+
+
+
+<!-- ADMIN REVIEW QUEUE -->
+<section id="reviewTab" class="tab-content admin-only hidden">
+<div class="section-header"><div><div class="small-title">INTERNAL VERIFICATION</div><h2>Flagged Records / Review Queue</h2></div></div>
+<div class="review-queue">
+<p class="account-help">Staff flags do not alter personnel records. Administrators review each report and decide whether the record requires correction or no change.</p>
+<div id="reviewQueueList"></div>
+</div>
+</section>
+
+<!-- STAFF ACCOUNT MANAGEMENT — OWN SUB TAB -->
+<section id="accountsTab" class="tab-content admin-only hidden">
+<div class="section-header"><div><div class="small-title">ACCESS CONTROL</div><h2>Staff Account Management</h2></div></div>
 <div id="accountManagementPanel" class="account-management admin-only hidden">
 
 <h2>Staff Account Management</h2>
@@ -2145,17 +2177,6 @@ when you intentionally want to contact Supabase.
 </div>
 
 </div>
-
-
-<div class="audit-card">
-
-<h2>Registry Action Log</h2>
-
-<div id="auditLog">
-</div>
-
-</div>
-
 </section>
 
 </main>
@@ -2567,6 +2588,10 @@ let unitRoster =
 JSON.parse(localStorage.getItem("vamUnitRoster"))
 || [];
 
+let recordFlags =
+JSON.parse(localStorage.getItem("vamRecordFlags"))
+|| [];
+
 
 /* =========================================================
    PAGE FUNCTIONS
@@ -2949,6 +2974,11 @@ function saveData() {
     localStorage.setItem(
         "vamUnitRoster",
         JSON.stringify(unitRoster)
+    );
+
+    localStorage.setItem(
+        "vamRecordFlags",
+        JSON.stringify(recordFlags)
     );
 
 }
@@ -5077,6 +5107,7 @@ function serviceHistorySortValue(dateText) {
                 )">
                 Remove
                 </button>
+                <button class="service-history-delete-btn" style="right:62px;" type="button" onclick="openFlagRecordDialog('${escapeJS(person.id)}','service_history','${escapeJS(event.type + " — " + event.label)}','${escapeJS(event.historyId || "")}')">Flag</button>
                 `
                 :
                 ""
@@ -5158,6 +5189,12 @@ function serviceHistorySortValue(dateText) {
             <div class="record-id" style="text-align:center;margin-bottom:18px;">
             IMPERIAL SERVICE RECORD ${escapeHTML(person.id)}
             </div>
+
+            ${userRole === "staff" ? `
+            <div style="text-align:center;margin-bottom:16px;">
+                <button class="flag-record-btn" type="button" onclick="openFlagRecordDialog('${escapeJS(person.id)}','profile','Entire Profile')">⚑ Flag Record</button>
+                ${recordFlags.some(f => f.personId === person.id && f.status === "open") ? `<div class="profile-review-status">⚑ UNDER REVIEW — ${recordFlags.filter(f => f.personId === person.id && f.status === "open").length} open flag(s)</div>` : ``}
+            </div>` : ``}
 
 
             <div class="service-identity-row">
@@ -8046,6 +8083,48 @@ function renderPersonSelector() {
 
 
 /* =========================================================
+   STAFF FLAG / ADMIN REVIEW SYSTEM
+   ========================================================= */
+let pendingFlagTarget = null;
+
+function openFlagRecordDialog(personId, targetType, targetLabel, historyId="") {
+    if(userRole !== "staff") return;
+    const person = personnel.find(p => p.id === personId);
+    if(!person) return;
+    pendingFlagTarget = {personId,targetType,targetLabel,historyId};
+    document.getElementById("flagRecordPerson").textContent = "@" + (person.username || "Unknown");
+    document.getElementById("flagRecordTargetType").value = targetType === "service_history" ? "service_history" : "profile";
+    document.getElementById("flagRecordTargetLabel").textContent = targetLabel || "Entire Profile";
+    document.getElementById("flagRecordReason").value = "";
+    document.getElementById("flagRecordModal").classList.add("active");
+}
+function cancelFlagRecord(){pendingFlagTarget=null;document.getElementById("flagRecordModal").classList.remove("active");}
+function submitRecordFlag(){
+    if(userRole!=="staff" || !pendingFlagTarget) return;
+    const reason=document.getElementById("flagRecordReason").value.trim();
+    const category=document.getElementById("flagRecordCategory").value;
+    if(!reason){alert("Please enter a reason for flagging this record.");return;}
+    const person=personnel.find(p=>p.id===pendingFlagTarget.personId); if(!person)return;
+    recordFlags.push({id:"FLAG-"+Date.now()+"-"+Math.random().toString(36).slice(2,7),personId:person.id,username:person.username||"",category,targetType:pendingFlagTarget.targetType,targetLabel:pendingFlagTarget.targetLabel,historyId:pendingFlagTarget.historyId||"",reason,flaggedBy:staffName||currentStaffProfile?.account_name||"Staff",flaggedDate:new Date().toISOString().slice(0,10),status:"open",resolution:"",resolvedBy:"",resolvedDate:""});
+    addAudit("Flagged @"+(person.username||"Unknown")+" — "+category+": "+pendingFlagTarget.targetLabel);
+    saveData(); cancelFlagRecord(); renderEverything(); openPassport(person.id);
+}
+function renderReviewQueue(){
+    const box=document.getElementById("reviewQueueList"); if(!box)return;
+    const rows=[...recordFlags].reverse();
+    if(!rows.length){box.innerHTML='<div class="empty-message">No records have been flagged for review.</div>';return;}
+    box.innerHTML=rows.map(f=>{const p=personnel.find(x=>x.id===f.personId);return `<div class="review-card"><div class="review-card-header"><div><strong>@${escapeHTML(p?.username||f.username||"Unknown")}</strong><div class="person-meta">${escapeHTML(f.category)} • ${escapeHTML(f.targetLabel)} • Flagged by ${escapeHTML(f.flaggedBy)} on ${escapeHTML(f.flaggedDate)}</div></div><div class="review-status">${escapeHTML(f.status)}</div></div><div class="review-note">${escapeHTML(f.reason)}</div>${f.status==="open"?`<div class="review-actions"><button class="secondary-btn" onclick="resolveRecordFlag('${escapeJS(f.id)}','no_change')">Resolve — No Change</button><button class="primary-btn" onclick="resolveRecordFlag('${escapeJS(f.id)}','correction_required')">Mark — Correction Required</button></div>`:`<div class="person-meta" style="margin-top:10px;">Resolution: ${escapeHTML(f.resolution)} • ${escapeHTML(f.resolvedBy)} • ${escapeHTML(f.resolvedDate)}</div>`}</div>`}).join("");
+}
+function resolveRecordFlag(flagId,resolution){
+    if(userRole!=="staff"||staffRole!=="admin")return;
+    const f=recordFlags.find(x=>x.id===flagId);if(!f)return;
+    const wording=resolution==="no_change"?"Resolve this flag with no change to the personnel record?":"Mark this flag as requiring a correction? The underlying record will remain unchanged until an administrator edits/removes it.";
+    if(!confirm(wording))return;
+    f.status="resolved";f.resolution=resolution==="no_change"?"No Change Required":"Correction Required";f.resolvedBy=staffName||"Administrator";f.resolvedDate=new Date().toISOString().slice(0,10);
+    addAudit("Resolved flag for @"+(f.username||"Unknown")+" — "+f.resolution);saveData();renderEverything();
+}
+
+/* =========================================================
    AUDIT LOG
    ========================================================= */
 
@@ -8789,6 +8868,7 @@ function renderEverything() {
     renderPersonSelector();
 
     renderAudit();
+    renderReviewQueue();
 
     if(document.getElementById("quickRobloxUsername")) {
         updateQuickRecorder();
@@ -8954,6 +9034,18 @@ document.addEventListener("click", event => {
 
 
 </script>
+
+
+<div id="flagRecordModal" class="registry-modal-backdrop" role="dialog" aria-modal="true">
+<div class="registry-modal">
+<h2>Flag Personnel Record</h2>
+<p>Submit this record for Administrator review. Flagging does not change, remove or suspend the underlying personnel record.</p>
+<div class="flag-target-summary"><strong id="flagRecordPerson"></strong><br><span id="flagRecordTargetLabel"></span></div>
+<label>Record Area<select id="flagRecordTargetType" disabled><option value="profile">Profile</option><option value="service_history">Service History Entry</option></select></label>
+<label>Reason Category<select id="flagRecordCategory"><option>Rank</option><option>Decoration / Honour</option><option>Title</option><option>Regiment / Unit</option><option>Service History</option><option>Roblox Identity</option><option>Entire Profile</option></select></label>
+<label>Reason / Concern<textarea id="flagRecordReason" rows="5" placeholder="Explain why this record appears outdated, incorrect or suspicious..."></textarea></label>
+<div class="registry-modal-actions"><button class="secondary-btn" type="button" onclick="cancelFlagRecord()">Cancel</button><button class="primary-btn" type="button" onclick="submitRecordFlag()">Submit Flag</button></div>
+</div></div>
 
 </body>
 </html>
