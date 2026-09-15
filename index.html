@@ -1405,6 +1405,46 @@ th {
     }
 }
 
+/* =========================================================
+   PUBLIC UPDATES + VERSION
+   ========================================================= */
+.update-board {
+    background: var(--light-cream);
+    border: 1px solid var(--gold);
+    padding: 30px;
+}
+.update-entry {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
+}
+.update-entry:last-child { border-bottom: none; }
+.update-entry h3 { margin: 0 0 7px; color: var(--red); font-size: 22px; }
+.update-entry-meta { color: var(--muted); font-family: Arial,sans-serif; font-size: 12px; margin-bottom: 10px; }
+.update-entry-body { white-space: pre-wrap; line-height: 1.6; }
+.update-admin-editor {
+    margin-bottom: 28px;
+    padding: 24px;
+    border: 2px solid #424750;
+    border-radius: 12px;
+    background: var(--cream);
+}
+.update-admin-editor textarea { min-height: 150px; resize: vertical; }
+.update-editor-grid { display:grid; grid-template-columns:1fr 220px; gap:16px; }
+.update-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.site-version {
+    position: fixed;
+    right: 14px;
+    bottom: 10px;
+    z-index: 5000;
+    padding: 5px 9px;
+    border: 1px solid rgba(118,28,37,.25);
+    background: rgba(248,241,228,.92);
+    color: var(--muted);
+    font-family: Arial,sans-serif;
+    font-size: 11px;
+}
+@media(max-width:700px){ .update-editor-grid{grid-template-columns:1fr;} }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -1574,6 +1614,12 @@ Personnel
 class="tab-button"
 onclick="openTab('ranks',this)">
 Regiment / Unit Roster
+</button>
+
+<button
+class="tab-button"
+onclick="openTab('updates',this)">
+Updates
 </button>
 
 <button
@@ -1778,6 +1824,48 @@ Enter
 </div>
 
 <div id="unitRosterTable">
+</div>
+
+</section>
+
+
+<!-- =====================================================
+     UPDATES TAB — PUBLIC / ADMIN EDITABLE
+     ===================================================== -->
+
+<section id="updatesTab" class="tab-content">
+
+<div class="section-header">
+<div>
+<div class="small-title">IMPERIAL REGISTRY BULLETIN</div>
+<h2>Updates</h2>
+</div>
+</div>
+
+<div id="updateAdminEditor" class="update-admin-editor admin-only hidden">
+<div class="small-title">ADMINISTRATOR PUBLISHING</div>
+<h2>Publish Registry Update</h2>
+<p class="quick-recorder-help">Administrators may edit the public update content and set the current website version displayed at the bottom-right of the registry.</p>
+<div class="update-editor-grid">
+<label>Update Title
+<input id="updateTitleInput" type="text" placeholder="e.g. Registry Update">
+</label>
+<label>Version Number
+<input id="siteVersionInput" type="text" placeholder="e.g. 1.0.0">
+</label>
+</div>
+<label>Update Content
+<textarea id="updateBodyInput" placeholder="Enter the update announcement to be shown to guests and staff..."></textarea>
+</label>
+<div class="update-actions">
+<button class="primary-btn" type="button" onclick="publishRegistryUpdate()">Publish Update</button>
+<button class="secondary-btn" type="button" onclick="saveWebsiteVersion()">Save Version Number</button>
+</div>
+<div id="updateEditorMessage" class="quick-feedback"></div>
+</div>
+
+<div class="update-board">
+<div id="publicUpdatesList"></div>
 </div>
 
 </section>
@@ -2181,6 +2269,8 @@ when you intentionally want to contact Supabase.
 
 </main>
 
+<div id="siteVersionBadge" class="site-version">Version —</div>
+
 </section>
 
 
@@ -2393,168 +2483,12 @@ let currentStaffProfile = null;
 
 /* =========================================================
    STARTING PERSONNEL
+   =========================================================
+   No demonstration/testing profiles are shipped with the registry.
+   Real personnel records are created through the Staff Desk.
    ========================================================= */
 
-const defaultPersonnel = [
-
-{
-
-    id: "RU-000127",
-
-    name: "Alexander Petrov",
-
-    username: "AlexP123",
-
-    rank: "Colonel",
-
-    title: "Count of Smolensk",
-
-    unit: "Preobrazhensky Life Guards",
-
-    status: "Active",
-
-    medals: [
-
-        {
-
-            name: "Order of St. George",
-
-            grade: "IV Class",
-
-            date: "1894-05-08",
-
-            citation:
-            "For distinguished military service during the campaign."
-
-        },
-
-        {
-
-            name: "Order of St. Vladimir",
-
-            grade: "III Class",
-
-            date: "1896-11-17",
-
-            citation:
-            "For meritorious service to the Empire."
-
-        }
-
-    ],
-
-    rankHistory: [
-
-        {
-            rank: "Lieutenant",
-            date: "1888"
-        },
-
-        {
-            rank: "Captain",
-            date: "1890"
-        },
-
-        {
-            rank: "Colonel",
-            date: "1894"
-        }
-
-    ]
-
-},
-
-
-{
-
-    id: "RU-000128",
-
-    name: "Mikhail Orlov",
-
-    username: "MOrlov_RUS",
-
-    rank: "Major General",
-
-    title: "Baron",
-
-    unit: "2nd Guards Division",
-
-    status: "Active",
-
-    medals: [
-
-        {
-
-            name: "Order of St. Anna",
-
-            grade: "II Class",
-
-            date: "1895-02-10",
-
-            citation:
-            "For distinguished service in the Imperial Army."
-
-        }
-
-    ],
-
-    rankHistory: [
-
-        {
-            rank: "Major",
-            date: "1887"
-        },
-
-        {
-            rank: "Colonel",
-            date: "1891"
-        },
-
-        {
-            rank: "Major General",
-            date: "1896"
-        }
-
-    ]
-
-},
-
-
-{
-
-    id: "RU-000129",
-
-    name: "Nikolai Volkov",
-
-    username: "Volkov1890",
-
-    rank: "Captain",
-
-    title: "",
-
-    unit: "Moscow Grenadier Regiment",
-
-    status: "Active",
-
-    medals: [],
-
-    rankHistory: [
-
-        {
-            rank: "Lieutenant",
-            date: "1892"
-        },
-
-        {
-            rank: "Captain",
-            date: "1896"
-        }
-
-    ]
-
-}
-
-];
+const defaultPersonnel = [];
 
 
 /* =========================================================
@@ -2574,9 +2508,29 @@ let selectedPerson = null;
    LOAD DATA
    ========================================================= */
 
+const TEST_PROFILE_USERNAMES = new Set([
+    "alexp123",
+    "morlov_rus",
+    "volkov1890",
+    "pumkin_bronson",
+    "noob123",
+    "fresay"
+]);
+
 let personnel =
 JSON.parse(localStorage.getItem("vamPersonnel"))
 || defaultPersonnel;
+
+/* One-time cleanup of the original demonstration/testing records. */
+personnel = personnel.filter(person =>
+    !TEST_PROFILE_USERNAMES.has(
+        String(person?.username || person?.name || "")
+        .replace(/^@/, "")
+        .trim()
+        .toLowerCase()
+    )
+);
+localStorage.setItem("vamPersonnel", JSON.stringify(personnel));
 
 
 let auditLog =
@@ -2591,6 +2545,14 @@ JSON.parse(localStorage.getItem("vamUnitRoster"))
 let recordFlags =
 JSON.parse(localStorage.getItem("vamRecordFlags"))
 || [];
+
+let registryUpdates =
+JSON.parse(localStorage.getItem("vamRegistryUpdates"))
+|| [];
+
+let siteVersion =
+localStorage.getItem("vamSiteVersion")
+|| "0.1.0";
 
 
 /* =========================================================
@@ -2979,6 +2941,16 @@ function saveData() {
     localStorage.setItem(
         "vamRecordFlags",
         JSON.stringify(recordFlags)
+    );
+
+    localStorage.setItem(
+        "vamRegistryUpdates",
+        JSON.stringify(registryUpdates)
+    );
+
+    localStorage.setItem(
+        "vamSiteVersion",
+        siteVersion
     );
 
 }
@@ -8842,6 +8814,129 @@ function escapeHTML(value) {
 
 
 /* =========================================================
+   PUBLIC UPDATES / VERSION
+   ========================================================= */
+
+function escapeRegistryHTML(value) {
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+function renderRegistryUpdates() {
+    const list = document.getElementById("publicUpdatesList");
+    const badge = document.getElementById("siteVersionBadge");
+    const versionInput = document.getElementById("siteVersionInput");
+
+    if(badge) badge.textContent = "Version " + (siteVersion || "—");
+    if(versionInput && userRole === "staff" && staffRole === "admin") {
+        versionInput.value = siteVersion || "";
+    }
+
+    if(!list) return;
+
+    if(!registryUpdates.length) {
+        list.innerHTML = '<div class="empty-message">No public updates have been published yet.</div>';
+        return;
+    }
+
+    list.innerHTML = registryUpdates.map(update => {
+        const canEdit = userRole === "staff" && staffRole === "admin";
+        return `
+        <article class="update-entry">
+            <h3>${escapeRegistryHTML(update.title || "Registry Update")}</h3>
+            <div class="update-entry-meta">${escapeRegistryHTML(update.date || "")}${update.version ? " • Version " + escapeRegistryHTML(update.version) : ""}</div>
+            <div class="update-entry-body">${escapeRegistryHTML(update.body || "")}</div>
+            ${canEdit ? `<div class="update-actions"><button class="secondary-btn" type="button" onclick="editRegistryUpdate('${update.id}')">Edit</button><button class="danger-btn" type="button" onclick="deleteRegistryUpdate('${update.id}')">Delete</button></div>` : ""}
+        </article>`;
+    }).join("");
+}
+
+function publishRegistryUpdate() {
+    if(userRole !== "staff" || staffRole !== "admin") return;
+
+    const title = document.getElementById("updateTitleInput").value.trim();
+    const body = document.getElementById("updateBodyInput").value.trim();
+    const version = document.getElementById("siteVersionInput").value.trim();
+    const message = document.getElementById("updateEditorMessage");
+
+    if(!title || !body) {
+        message.className = "quick-feedback warning";
+        message.textContent = "Enter both an update title and update content.";
+        return;
+    }
+
+    if(version) siteVersion = version;
+
+    const editingId = document.getElementById("updateAdminEditor").dataset.editingId;
+    if(editingId) {
+        const existing = registryUpdates.find(item => item.id === editingId);
+        if(existing) {
+            existing.title = title;
+            existing.body = body;
+            existing.version = siteVersion;
+            existing.date = new Date().toLocaleDateString("en-GB", {day:"2-digit",month:"long",year:"numeric"});
+        }
+        delete document.getElementById("updateAdminEditor").dataset.editingId;
+    } else {
+        registryUpdates.unshift({
+            id: "UPD-" + Date.now(),
+            title,
+            body,
+            version: siteVersion,
+            date: new Date().toLocaleDateString("en-GB", {day:"2-digit",month:"long",year:"numeric"})
+        });
+    }
+
+    document.getElementById("updateTitleInput").value = "";
+    document.getElementById("updateBodyInput").value = "";
+    saveData();
+    renderRegistryUpdates();
+    message.className = "quick-feedback success";
+    message.textContent = "Public update published.";
+}
+
+function editRegistryUpdate(id) {
+    if(userRole !== "staff" || staffRole !== "admin") return;
+    const update = registryUpdates.find(item => item.id === id);
+    if(!update) return;
+    document.getElementById("updateTitleInput").value = update.title || "";
+    document.getElementById("updateBodyInput").value = update.body || "";
+    document.getElementById("siteVersionInput").value = update.version || siteVersion || "";
+    document.getElementById("updateAdminEditor").dataset.editingId = id;
+    document.getElementById("updateEditorMessage").textContent = "Editing selected update. Press Publish Update to save changes.";
+}
+
+function deleteRegistryUpdate(id) {
+    if(userRole !== "staff" || staffRole !== "admin") return;
+    if(!confirm("Delete this public update?")) return;
+    registryUpdates = registryUpdates.filter(item => item.id !== id);
+    saveData();
+    renderRegistryUpdates();
+}
+
+function saveWebsiteVersion() {
+    if(userRole !== "staff" || staffRole !== "admin") return;
+    const input = document.getElementById("siteVersionInput");
+    const message = document.getElementById("updateEditorMessage");
+    const value = input.value.trim();
+    if(!value) {
+        message.className = "quick-feedback warning";
+        message.textContent = "Enter a version number first.";
+        return;
+    }
+    siteVersion = value;
+    saveData();
+    renderRegistryUpdates();
+    message.className = "quick-feedback success";
+    message.textContent = "Website version updated.";
+}
+
+
+/* =========================================================
    RENDER EVERYTHING
    ========================================================= */
 
@@ -8869,6 +8964,8 @@ function renderEverything() {
 
     renderAudit();
     renderReviewQueue();
+
+    renderRegistryUpdates();
 
     if(document.getElementById("quickRobloxUsername")) {
         updateQuickRecorder();
