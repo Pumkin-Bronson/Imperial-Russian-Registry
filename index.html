@@ -2580,7 +2580,7 @@ function showPage(pageID) {
    GUEST
    ========================================================= */
 
-function enterGuest() {
+async function enterGuest() {
 
     userRole = "guest";
 
@@ -2590,8 +2590,12 @@ function enterGuest() {
 
     showPage("registryPage");
 
+    /* Load the shared public Personnel + Unit data before rendering.
+       Guests never upload local browser data to Supabase. */
+    await loadRegistryCoreDataFromSupabase({allowMigration: false});
+
     renderEverything();
-    loadRegistryUpdatesFromSupabase();
+    await loadRegistryUpdatesFromSupabase();
 
 }
 
@@ -2778,6 +2782,11 @@ async function staffLogin() {
 
     showPage("registryPage");
 
+    /* Load shared Personnel + Unit data. If Supabase is still empty,
+       the first authenticated staff session may migrate this browser's
+       existing local records into the shared tables. */
+    await loadRegistryCoreDataFromSupabase({allowMigration: true});
+
     renderEverything();
     await loadRegistryUpdatesFromSupabase();
 
@@ -2955,6 +2964,162 @@ function saveData() {
         siteVersion
     );
 
+    /* Keep the browser cache for resilience, but Supabase is now the
+       shared source of truth for Personnel and Regiment / Unit records. */
+    if(userRole === "staff") {
+        queueRegistryCoreSync();
+    }
+
+}
+
+
+/* =========================================================
+   SHARED PERSONNEL + UNIT DATA — SUPABASE SYNC
+   ========================================================= */
+
+let registryCoreSyncTimer = null;
+let registryCoreSyncPromise = Promise.resolve();
+
+function cacheRegistryCoreData() {
+    localStorage.setItem("vamPersonnel", JSON.stringify(personnel));
+    localStorage.setItem("vamUnitRoster", JSON.stringify(unitRoster));
+}
+
+async function getAuthenticatedRegistryUser() {
+    const { data, error } = await supabaseClient.auth.getUser();
+    if(error) throw error;
+    return data && data.user ? data.user : null;
+}
+
+async function replaceSupabaseCollection(tableName, rows) {
+    const localRows = Array.isArray(rows) ? rows : [];
+    const ids = localRows
+        .map(row => String(row && row.id || "").trim())
+        .filter(Boolean);
+
+    if(localRows.length) {
+        const payload = localRows.map(row => ({
+            id: String(row.id),
+            data: row,
+            updated_at: new Date().toISOString()
+        }));
+
+        const { error: upsertError } = await supabaseClient
+            .from(tableName)
+            .upsert(payload, { onConflict: "id" });
+
+        if(upsertError) throw upsertError;
+    }
+
+    /* Remove rows that were deleted in the website.
+       When the local collection is empty, delete every remote row. */
+    let deleteQuery = supabaseClient.from(tableName).delete();
+
+    if(ids.length) {
+        deleteQuery = deleteQuery.not("id", "in", "(" + ids.map(id =>
+            '"' + id.replace(/"/g, '\"') + '"'
+        ).join(",") + ")");
+    } else {
+        deleteQuery = deleteQuery.not("id", "is", null);
+    }
+
+    const { error: deleteError } = await deleteQuery;
+    if(deleteError) throw deleteError;
+}
+
+async function syncRegistryCoreDataToSupabase() {
+    if(userRole !== "staff") return false;
+
+    try {
+        const user = await getAuthenticatedRegistryUser();
+        if(!user) return false;
+
+        await replaceSupabaseCollection("registry_personnel", personnel);
+        await replaceSupabaseCollection("registry_units", unitRoster);
+
+        return true;
+    } catch(error) {
+        console.error("Could not sync Personnel / Units to Supabase:", error);
+        return false;
+    }
+}
+
+function queueRegistryCoreSync() {
+    clearTimeout(registryCoreSyncTimer);
+
+    registryCoreSyncTimer = setTimeout(() => {
+        registryCoreSyncPromise = registryCoreSyncPromise
+            .catch(() => {})
+            .then(() => syncRegistryCoreDataToSupabase());
+    }, 120);
+}
+
+async function fetchSupabaseCollection(tableName) {
+    const { data, error } = await supabaseClient
+        .from(tableName)
+        .select("id, data, updated_at")
+        .order("updated_at", { ascending: true });
+
+    if(error) throw error;
+
+    return (data || [])
+        .map(row => row && row.data ? row.data : null)
+        .filter(Boolean);
+}
+
+async function loadRegistryCoreDataFromSupabase({allowMigration = false} = {}) {
+    try {
+        const [remotePersonnel, remoteUnits] = await Promise.all([
+            fetchSupabaseCollection("registry_personnel"),
+            fetchSupabaseCollection("registry_units")
+        ]);
+
+        const localPersonnel = Array.isArray(personnel) ? personnel : [];
+        const localUnits = Array.isArray(unitRoster) ? unitRoster : [];
+
+        /* One-time migration:
+           if an authenticated staff member already has real local records
+           and the corresponding Supabase table is empty, preserve and
+           upload those records instead of replacing them with an empty list. */
+        let migratePersonnel = false;
+        let migrateUnits = false;
+
+        if(allowMigration) {
+            const user = await getAuthenticatedRegistryUser();
+
+            if(user) {
+                migratePersonnel =
+                    remotePersonnel.length === 0 &&
+                    localPersonnel.length > 0;
+
+                migrateUnits =
+                    remoteUnits.length === 0 &&
+                    localUnits.length > 0;
+            }
+        }
+
+        if(migratePersonnel) {
+            await replaceSupabaseCollection("registry_personnel", localPersonnel);
+        } else {
+            personnel = remotePersonnel;
+        }
+
+        if(migrateUnits) {
+            await replaceSupabaseCollection("registry_units", localUnits);
+        } else {
+            unitRoster = remoteUnits;
+        }
+
+        cacheRegistryCoreData();
+        return true;
+
+    } catch(error) {
+        console.error("Could not load Personnel / Units from Supabase:", error);
+
+        /* Keep the last browser cache available if Supabase is temporarily
+           unreachable. */
+        return false;
+    }
 }
 
 
@@ -9271,6 +9436,8 @@ async function restoreStaffSession() {
     configurePermissions();
 
     showPage("registryPage");
+
+    await loadRegistryCoreDataFromSupabase({allowMigration: true});
 
     renderEverything();
     await loadRegistryUpdatesFromSupabase();
