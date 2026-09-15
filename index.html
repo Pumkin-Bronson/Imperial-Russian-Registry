@@ -1611,7 +1611,7 @@ Personnel
 </button>
 
 <button
-class="tab-button"
+class="tab-button admin-only hidden"
 onclick="openTab('ranks',this)">
 Regiment / Unit Roster
 </button>
@@ -1629,7 +1629,7 @@ onclick="openTab('staff',this)">
 Staff Desk
 </button>
 
-<button id="reviewTabButton" class="tab-button admin-only hidden" onclick="openTab('review',this)">Review Queue</button>
+<button id="reviewTabButton" class="tab-button staff-review-only hidden" onclick="openTab('review',this)">Review Queue</button>
 
 <button id="accountsTabButton" class="tab-button admin-only hidden" onclick="openTab('accounts',this)">Staff Account Management</button>
 
@@ -2805,8 +2805,23 @@ function configurePermissions() {
     const adminElements =
     document.querySelectorAll(".admin-only");
 
+    const staffReviewElements =
+    document.querySelectorAll(".staff-review-only");
 
+
+    /* Ordinary Staff accounts are review-only.  Existing .staff-only
+       administration controls are therefore available to administrators only. */
     staffElements.forEach(element => {
+
+        element.classList.toggle(
+            "hidden",
+            !(userRole === "staff" && staffRole === "admin")
+        );
+
+    });
+
+    /* Both Staff and Administrators may view the Review Queue. */
+    staffReviewElements.forEach(element => {
 
         element.classList.toggle(
             "hidden",
@@ -2897,6 +2912,19 @@ async function exitRegistry() {
    ========================================================= */
 
 function openTab(tabName,button) {
+
+    /* Enforce role restrictions even if somebody calls openTab() manually. */
+    if(
+        userRole === "staff"
+        && staffRole !== "admin"
+        && (tabName === "staff" || tabName === "ranks" || tabName === "accounts")
+    ) {
+        return;
+    }
+
+    if(tabName === "review" && userRole !== "staff") {
+        return;
+    }
 
     document
     .querySelectorAll(".tab-content")
@@ -4611,7 +4639,7 @@ function requestServiceHistoryRemoval(
     eventLabel
 ) {
 
-    if(userRole !== "staff") {
+    if(userRole !== "staff" || staffRole !== "admin") {
         return;
     }
 
@@ -5214,6 +5242,7 @@ function serviceHistorySortValue(dateText) {
                 event.historyId
                 ?
                 `
+                ${staffRole === "admin" ? `
                 <button
                 class="service-history-delete-btn"
                 type="button"
@@ -5224,8 +5253,8 @@ function serviceHistorySortValue(dateText) {
                     '${escapeJS(event.label)}'
                 )">
                 Remove
-                </button>
-                <button class="service-history-delete-btn" style="right:62px;" type="button" onclick="openFlagRecordDialog('${escapeJS(person.id)}','service_history','${escapeJS(event.type + " — " + event.label)}','${escapeJS(event.historyId || "")}')">Flag</button>
+                </button>` : ""}
+                <button class="service-history-delete-btn" style="right:${staffRole === "admin" ? "62px" : "0"};" type="button" onclick="openFlagRecordDialog('${escapeJS(person.id)}','service_history','${escapeJS(event.type + " — " + event.label)}','${escapeJS(event.historyId || "")}')">Flag</button>
                 `
                 :
                 ""
@@ -5257,7 +5286,7 @@ function serviceHistorySortValue(dateText) {
             </div>
 
             ${
-                userRole === "staff"
+                userRole === "staff" && staffRole === "admin"
                 ?
                 `
                 <div class="service-honour-actions">
@@ -5344,7 +5373,7 @@ function serviceHistorySortValue(dateText) {
                         </strong>
 
                         ${
-                            userRole === "staff"
+                            userRole === "staff" && staffRole === "admin"
                             ?
                             `
                             <button class="secondary-btn service-save-id" type="button" onclick="openUsernameUpdate('${escapeJS(person.id)}')">
@@ -5363,7 +5392,7 @@ function serviceHistorySortValue(dateText) {
                         <small>Roblox ID</small>
 
                         ${
-                            userRole === "staff"
+                            userRole === "staff" && staffRole === "admin"
                             ?
                             `
                             <input
@@ -8231,7 +8260,7 @@ function renderReviewQueue(){
     const box=document.getElementById("reviewQueueList"); if(!box)return;
     const rows=[...recordFlags].reverse();
     if(!rows.length){box.innerHTML='<div class="empty-message">No records have been flagged for review.</div>';return;}
-    box.innerHTML=rows.map(f=>{const p=personnel.find(x=>x.id===f.personId);return `<div class="review-card"><div class="review-card-header"><div><strong>@${escapeHTML(p?.username||f.username||"Unknown")}</strong><div class="person-meta">${escapeHTML(f.category)} • ${escapeHTML(f.targetLabel)} • Flagged by ${escapeHTML(f.flaggedBy)} on ${escapeHTML(f.flaggedDate)}</div></div><div class="review-status">${escapeHTML(f.status)}</div></div><div class="review-note">${escapeHTML(f.reason)}</div>${f.status==="open"?`<div class="review-actions"><button class="secondary-btn" onclick="resolveRecordFlag('${escapeJS(f.id)}','no_change')">Resolve — No Change</button><button class="primary-btn" onclick="resolveRecordFlag('${escapeJS(f.id)}','correction_required')">Mark — Correction Required</button></div>`:`<div class="person-meta" style="margin-top:10px;">Resolution: ${escapeHTML(f.resolution)} • ${escapeHTML(f.resolvedBy)} • ${escapeHTML(f.resolvedDate)}</div>`}</div>`}).join("");
+    box.innerHTML=rows.map(f=>{const p=personnel.find(x=>x.id===f.personId);return `<div class="review-card"><div class="review-card-header"><div><strong>@${escapeHTML(p?.username||f.username||"Unknown")}</strong><div class="person-meta">${escapeHTML(f.category)} • ${escapeHTML(f.targetLabel)} • Flagged by ${escapeHTML(f.flaggedBy)} on ${escapeHTML(f.flaggedDate)}</div></div><div class="review-status">${escapeHTML(f.status)}</div></div><div class="review-note">${escapeHTML(f.reason)}</div>${f.status==="open" && staffRole==="admin"?`<div class="review-actions"><button class="secondary-btn" onclick="resolveRecordFlag('${escapeJS(f.id)}','no_change')">Resolve — No Change</button><button class="primary-btn" onclick="resolveRecordFlag('${escapeJS(f.id)}','correction_required')">Mark — Correction Required</button></div>`:f.status!=="open"?`<div class="person-meta" style="margin-top:10px;">Resolution: ${escapeHTML(f.resolution)} • ${escapeHTML(f.resolvedBy)} • ${escapeHTML(f.resolvedDate)}</div>`:`<div class="person-meta" style="margin-top:10px;">Staff review access — administrator action required.</div>`}</div>`}).join("");
 }
 function resolveRecordFlag(flagId,resolution){
     if(userRole!=="staff"||staffRole!=="admin")return;
