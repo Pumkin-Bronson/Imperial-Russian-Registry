@@ -2189,7 +2189,7 @@ The selected date and note will be stored with the rank, medal or title record.
 
 
 <!-- ADMIN REVIEW QUEUE -->
-<section id="reviewTab" class="tab-content admin-only hidden">
+<section id="reviewTab" class="tab-content staff-review-only hidden">
 <div class="section-header"><div><div class="small-title">INTERNAL VERIFICATION</div><h2>Flagged Records / Review Queue</h2></div></div>
 <div class="review-queue">
 <p class="account-help">Staff flags do not alter personnel records. Administrators review each report and decide whether the record requires correction or no change.</p>
@@ -2593,6 +2593,7 @@ async function enterGuest() {
     /* Load the shared public Personnel + Unit data before rendering.
        Guests never upload local browser data to Supabase. */
     await loadRegistryCoreDataFromSupabase({allowMigration: false});
+    await loadReviewQueueFromSupabase({silent: true});
 
     renderEverything();
     await loadRegistryUpdatesFromSupabase();
@@ -2786,6 +2787,7 @@ async function staffLogin() {
        the first authenticated staff session may migrate this browser's
        existing local records into the shared tables. */
     await loadRegistryCoreDataFromSupabase({allowMigration: true});
+    await loadReviewQueueFromSupabase({silent: true});
 
     renderEverything();
     await loadRegistryUpdatesFromSupabase();
@@ -2924,6 +2926,10 @@ function openTab(tabName,button) {
 
     if(tabName === "review" && userRole !== "staff") {
         return;
+    }
+
+    if(tabName === "review" && userRole === "staff") {
+        loadReviewQueueFromSupabase({silent: true});
     }
 
     document
@@ -4215,7 +4221,7 @@ function getRankHierarchyIndex(rank) {
 
 function removeCurrentRank(personID) {
 
-    if(userRole !== "staff") {
+    if(userRole !== "staff" || staffRole !== "admin") {
 
         return;
 
@@ -4463,7 +4469,7 @@ function confirmRankDemotion() {
 
 function removeCurrentTitle(personID) {
 
-    if(userRole !== "staff") {
+    if(userRole !== "staff" || staffRole !== "admin") {
 
         return;
 
@@ -4547,7 +4553,7 @@ function removeCurrentTitle(personID) {
 
 function removeDecoration(personID, medalIndex) {
 
-    if(userRole !== "staff") {
+    if(userRole !== "staff" || staffRole !== "admin") {
 
         return;
 
@@ -5440,6 +5446,8 @@ function serviceHistorySortValue(dateText) {
                     ${
                         userRole === "staff"
                         &&
+                        staffRole === "admin"
+                        &&
                         person.rank
                         &&
                         person.rank !== "Unranked"
@@ -5480,6 +5488,8 @@ function serviceHistorySortValue(dateText) {
 
                     ${
                         userRole === "staff"
+                        &&
+                        staffRole === "admin"
                         &&
                         person.title
                         &&
@@ -8246,30 +8256,254 @@ function openFlagRecordDialog(personId, targetType, targetLabel, historyId="") {
     document.getElementById("flagRecordModal").classList.add("active");
 }
 function cancelFlagRecord(){pendingFlagTarget=null;document.getElementById("flagRecordModal").classList.remove("active");}
-function submitRecordFlag(){
-    if(userRole!=="staff" || !pendingFlagTarget) return;
-    const reason=document.getElementById("flagRecordReason").value.trim();
-    const category=document.getElementById("flagRecordCategory").value;
-    if(!reason){alert("Please enter a reason for flagging this record.");return;}
-    const person=personnel.find(p=>p.id===pendingFlagTarget.personId); if(!person)return;
-    recordFlags.push({id:"FLAG-"+Date.now()+"-"+Math.random().toString(36).slice(2,7),personId:person.id,username:person.username||"",category,targetType:pendingFlagTarget.targetType,targetLabel:pendingFlagTarget.targetLabel,historyId:pendingFlagTarget.historyId||"",reason,flaggedBy:staffName||currentStaffProfile?.account_name||"Staff",flaggedDate:new Date().toISOString().slice(0,10),status:"open",resolution:"",resolvedBy:"",resolvedDate:""});
-    addAudit("Flagged @"+(person.username||"Unknown")+" — "+category+": "+pendingFlagTarget.targetLabel);
-    saveData(); cancelFlagRecord(); renderEverything(); openPassport(person.id);
+async function loadReviewQueueFromSupabase({silent = false} = {}) {
+    if(userRole !== "staff") {
+        recordFlags = [];
+        renderReviewQueue();
+        return false;
+    }
+
+    try {
+        const { data, error } = await supabaseClient
+            .from("registry_record_flags")
+            .select("*")
+            .order("flagged_at", { ascending: false });
+
+        if(error) throw error;
+
+        recordFlags = (data || []).map(row => ({
+            id: row.id,
+            personId: row.person_id,
+            username: row.username || "",
+            category: row.category || "",
+            targetType: row.target_type || "profile",
+            targetLabel: row.target_label || "",
+            historyId: row.history_id || "",
+            reason: row.reason || "",
+            flaggedBy: row.flagged_by_name || "Staff",
+            flaggedById: row.flagged_by || "",
+            flaggedDate: row.flagged_at
+                ? new Date(row.flagged_at).toLocaleDateString("en-GB")
+                : "",
+            status: row.status || "open",
+            resolution: row.resolution || "",
+            resolvedBy: row.resolved_by_name || "",
+            resolvedById: row.resolved_by || "",
+            resolvedDate: row.resolved_at
+                ? new Date(row.resolved_at).toLocaleDateString("en-GB")
+                : ""
+        }));
+
+        localStorage.setItem("vamRecordFlags", JSON.stringify(recordFlags));
+        renderReviewQueue();
+
+        if(selectedPerson) {
+            openPassport(selectedPerson);
+        }
+
+        return true;
+    }
+    catch(error) {
+        console.error("Could not load shared Review Queue from Supabase:", error);
+
+        if(!silent) {
+            alert("Could not load the shared Review Queue from Supabase.");
+        }
+
+        renderReviewQueue();
+        return false;
+    }
 }
+
+async function submitRecordFlag(){
+    if(userRole !== "staff" || !pendingFlagTarget) return;
+
+    const reason = document.getElementById("flagRecordReason").value.trim();
+    const category = document.getElementById("flagRecordCategory").value;
+
+    if(!reason){
+        alert("Please enter a reason for flagging this record.");
+        return;
+    }
+
+    const person = personnel.find(p => p.id === pendingFlagTarget.personId);
+    if(!person) return;
+
+    try {
+        const { data: authData, error: authError } =
+            await supabaseClient.auth.getUser();
+
+        if(authError) throw authError;
+        if(!authData?.user?.id) {
+            throw new Error("No authenticated staff user was found.");
+        }
+
+        const flagId =
+            "FLAG-" + Date.now() + "-" + Math.random().toString(36).slice(2,7);
+
+        const payload = {
+            id: flagId,
+            person_id: person.id,
+            username: person.username || "",
+            category: category,
+            target_type: pendingFlagTarget.targetType,
+            target_label: pendingFlagTarget.targetLabel || "",
+            history_id: pendingFlagTarget.historyId || "",
+            reason: reason,
+            flagged_by: authData.user.id,
+            flagged_by_name:
+                staffName ||
+                currentStaffProfile?.display_name ||
+                currentStaffProfile?.account_name ||
+                "Staff",
+            status: "open",
+            resolution: "",
+            resolved_by: null,
+            resolved_by_name: "",
+            resolved_at: null
+        };
+
+        const { error } = await supabaseClient
+            .from("registry_record_flags")
+            .insert(payload);
+
+        if(error) throw error;
+
+        addAudit(
+            "Flagged @" + (person.username || "Unknown")
+            + " — " + category + ": " + pendingFlagTarget.targetLabel
+        );
+
+        cancelFlagRecord();
+        await loadReviewQueueFromSupabase({silent: true});
+        openPassport(person.id);
+    }
+    catch(error) {
+        console.error("Could not submit shared record flag:", error);
+        alert("The flag could not be saved to the shared Review Queue.");
+    }
+}
+
 function renderReviewQueue(){
-    const box=document.getElementById("reviewQueueList"); if(!box)return;
-    const rows=[...recordFlags].reverse();
-    if(!rows.length){box.innerHTML='<div class="empty-message">No records have been flagged for review.</div>';return;}
-    box.innerHTML=rows.map(f=>{const p=personnel.find(x=>x.id===f.personId);return `<div class="review-card"><div class="review-card-header"><div><strong>@${escapeHTML(p?.username||f.username||"Unknown")}</strong><div class="person-meta">${escapeHTML(f.category)} • ${escapeHTML(f.targetLabel)} • Flagged by ${escapeHTML(f.flaggedBy)} on ${escapeHTML(f.flaggedDate)}</div></div><div class="review-status">${escapeHTML(f.status)}</div></div><div class="review-note">${escapeHTML(f.reason)}</div>${f.status==="open" && staffRole==="admin"?`<div class="review-actions"><button class="secondary-btn" onclick="resolveRecordFlag('${escapeJS(f.id)}','no_change')">Resolve — No Change</button><button class="primary-btn" onclick="resolveRecordFlag('${escapeJS(f.id)}','correction_required')">Mark — Correction Required</button></div>`:f.status!=="open"?`<div class="person-meta" style="margin-top:10px;">Resolution: ${escapeHTML(f.resolution)} • ${escapeHTML(f.resolvedBy)} • ${escapeHTML(f.resolvedDate)}</div>`:`<div class="person-meta" style="margin-top:10px;">Staff review access — administrator action required.</div>`}</div>`}).join("");
+    const box = document.getElementById("reviewQueueList");
+    if(!box) return;
+
+    const rows = [...recordFlags];
+
+    if(!rows.length){
+        box.innerHTML =
+            '<div class="empty-message">No records have been flagged for review.</div>';
+        return;
+    }
+
+    box.innerHTML = rows.map(f => {
+        const p = personnel.find(x => x.id === f.personId);
+
+        return `
+        <div class="review-card">
+            <div class="review-card-header">
+                <div>
+                    <strong>@${escapeHTML(p?.username || f.username || "Unknown")}</strong>
+                    <div class="person-meta">
+                        ${escapeHTML(f.category)}
+                        • ${escapeHTML(f.targetLabel)}
+                        • Flagged by ${escapeHTML(f.flaggedBy)}
+                        on ${escapeHTML(f.flaggedDate)}
+                    </div>
+                </div>
+                <div class="review-status">${escapeHTML(f.status)}</div>
+            </div>
+
+            <div class="review-note">${escapeHTML(f.reason)}</div>
+
+            ${
+                f.status === "open" && staffRole === "admin"
+                ?
+                `<div class="review-actions">
+                    <button class="secondary-btn"
+                        onclick="resolveRecordFlag('${escapeJS(f.id)}','no_change')">
+                        Resolve — No Change
+                    </button>
+                    <button class="primary-btn"
+                        onclick="resolveRecordFlag('${escapeJS(f.id)}','correction_required')">
+                        Mark — Correction Required
+                    </button>
+                </div>`
+                :
+                f.status !== "open"
+                ?
+                `<div class="person-meta" style="margin-top:10px;">
+                    Resolution: ${escapeHTML(f.resolution)}
+                    • ${escapeHTML(f.resolvedBy)}
+                    • ${escapeHTML(f.resolvedDate)}
+                </div>`
+                :
+                `<div class="person-meta" style="margin-top:10px;">
+                    Staff review access — administrator action required.
+                </div>`
+            }
+        </div>`;
+    }).join("");
 }
-function resolveRecordFlag(flagId,resolution){
-    if(userRole!=="staff"||staffRole!=="admin")return;
-    const f=recordFlags.find(x=>x.id===flagId);if(!f)return;
-    const wording=resolution==="no_change"?"Resolve this flag with no change to the personnel record?":"Mark this flag as requiring a correction? The underlying record will remain unchanged until an administrator edits/removes it.";
-    if(!confirm(wording))return;
-    f.status="resolved";f.resolution=resolution==="no_change"?"No Change Required":"Correction Required";f.resolvedBy=staffName||"Administrator";f.resolvedDate=new Date().toISOString().slice(0,10);
-    addAudit("Resolved flag for @"+(f.username||"Unknown")+" — "+f.resolution);saveData();renderEverything();
+
+async function resolveRecordFlag(flagId,resolution){
+    if(userRole !== "staff" || staffRole !== "admin") return;
+
+    const f = recordFlags.find(x => x.id === flagId);
+    if(!f) return;
+
+    const wording =
+        resolution === "no_change"
+        ? "Resolve this flag with no change to the personnel record?"
+        : "Mark this flag as requiring a correction? The underlying record will remain unchanged until an administrator edits/removes it.";
+
+    if(!confirm(wording)) return;
+
+    try {
+        const { data: authData, error: authError } =
+            await supabaseClient.auth.getUser();
+
+        if(authError) throw authError;
+        if(!authData?.user?.id) {
+            throw new Error("No authenticated administrator was found.");
+        }
+
+        const resolutionText =
+            resolution === "no_change"
+            ? "No Change Required"
+            : "Correction Required";
+
+        const { error } = await supabaseClient
+            .from("registry_record_flags")
+            .update({
+                status: "resolved",
+                resolution: resolutionText,
+                resolved_by: authData.user.id,
+                resolved_by_name:
+                    staffName ||
+                    currentStaffProfile?.display_name ||
+                    currentStaffProfile?.account_name ||
+                    "Administrator",
+                resolved_at: new Date().toISOString()
+            })
+            .eq("id", flagId);
+
+        if(error) throw error;
+
+        addAudit(
+            "Resolved flag for @" + (f.username || "Unknown")
+            + " — " + resolutionText
+        );
+
+        await loadReviewQueueFromSupabase({silent: true});
+        renderEverything();
+    }
+    catch(error) {
+        console.error("Could not resolve shared record flag:", error);
+        alert("The Review Queue item could not be updated in Supabase.");
+    }
 }
+
 
 /* =========================================================
    AUDIT LOG
