@@ -1611,6 +1611,7 @@ Personnel
 </button>
 
 <button
+id="unitRosterTabButton"
 class="tab-button"
 onclick="openTab('ranks',this)">
 Regiment / Unit Roster
@@ -2810,6 +2811,9 @@ function configurePermissions() {
     const staffReviewElements =
     document.querySelectorAll(".staff-review-only");
 
+    const unitRosterTabButton =
+    document.getElementById("unitRosterTabButton");
+
 
     /* Ordinary Staff accounts are review-only.  Existing .staff-only
        administration controls are therefore available to administrators only. */
@@ -2821,6 +2825,17 @@ function configurePermissions() {
         );
 
     });
+
+    /* Regiment / Unit Roster visibility:
+       Guest = visible (read-only)
+       Staff = hidden
+       Administrator = visible */
+    if(unitRosterTabButton) {
+        unitRosterTabButton.classList.toggle(
+            "hidden",
+            userRole === "staff" && staffRole !== "admin"
+        );
+    }
 
     /* Both Staff and Administrators may view the Review Queue. */
     staffReviewElements.forEach(element => {
