@@ -1611,7 +1611,7 @@ Personnel
 </button>
 
 <button
-class="tab-button admin-only hidden"
+class="tab-button"
 onclick="openTab('ranks',this)">
 Regiment / Unit Roster
 </button>
@@ -2913,9 +2913,11 @@ async function exitRegistry() {
    TAB SYSTEM
    ========================================================= */
 
-function openTab(tabName,button) {
+async function openTab(tabName,button) {
 
-    /* Enforce role restrictions even if somebody calls openTab() manually. */
+    /* Enforce role restrictions even if somebody calls openTab() manually.
+       Guests may view the Regiment / Unit Roster, while ordinary Staff may not.
+       Administrators retain full roster access. */
     if(
         userRole === "staff"
         && staffRole !== "admin"
@@ -2928,8 +2930,11 @@ function openTab(tabName,button) {
         return;
     }
 
+    /* Always refresh the shared queue before displaying it.
+       Awaiting the Supabase read prevents a stale local recordFlags array
+       from being rendered while the shared query is still in flight. */
     if(tabName === "review" && userRole === "staff") {
-        loadReviewQueueFromSupabase({silent: true});
+        await loadReviewQueueFromSupabase({silent: false});
     }
 
     document
