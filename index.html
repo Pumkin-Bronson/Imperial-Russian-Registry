@@ -1632,7 +1632,6 @@ Staff Desk
 
 <button id="reviewTabButton" class="tab-button staff-review-only hidden" onclick="openTab('review',this)">Review Queue</button>
 
-<button id="accountsTabButton" class="tab-button admin-only hidden" onclick="openTab('accounts',this)">Staff Account Management</button>
 
 </nav>
 
@@ -2195,76 +2194,6 @@ The selected date and note will be stored with the rank, medal or title record.
 <div class="review-queue">
 <p class="account-help">Staff flags do not alter personnel records. Administrators review each report and decide whether the record requires correction or no change.</p>
 <div id="reviewQueueList"></div>
-</div>
-</section>
-
-<!-- STAFF ACCOUNT MANAGEMENT — OWN SUB TAB -->
-<section id="accountsTab" class="tab-content admin-only hidden">
-<div class="section-header"><div><div class="small-title">ACCESS CONTROL</div><h2>Staff Account Management</h2></div></div>
-<div id="accountManagementPanel" class="account-management admin-only hidden">
-
-<h2>Staff Account Management</h2>
-
-<p class="account-help">
-Only Administrators can see this section. Create Staff or Administrator accounts in Supabase, reset passwords, disable access, or delete accounts.
-</p>
-
-<div class="account-create-grid">
-
-<label>
-Staff Email
-<input id="newStaffEmail" type="email" placeholder="staff@example.com">
-</label>
-
-<label>
-Account Name
-<input id="newStaffAccountName" placeholder="e.g. WarOffice">
-</label>
-
-<label>
-Temporary Password
-<input id="newStaffAccountPassword" type="password" placeholder="Minimum 8 characters">
-</label>
-
-<label>
-Display Name
-<input id="newStaffDisplayName" placeholder="e.g. Ministry of War">
-</label>
-
-<label>
-Role
-<select id="newStaffRole">
-<option value="staff">Staff</option>
-<option value="admin">Administrator</option>
-</select>
-</label>
-
-</div>
-
-<button class="primary-btn" onclick="createStaffAccount()">
-Create Staff Account
-</button>
-
-<button
-class="secondary-btn"
-type="button"
-style="margin-top:20px;margin-left:8px;"
-onclick="loadStaffAccountsFromSupabase()">
-Load / Refresh Staff Accounts
-</button>
-
-<div class="account-help" style="margin-top:18px;margin-bottom:0;">
-Staff account management is the only area here that uses the Supabase
-<strong>manage-staff</strong> Edge Function. Ordinary registry actions do not.
-</div>
-
-<div id="staffAccountList" class="account-list">
-<div class="person-meta">
-Staff accounts are not loaded automatically. Use “Load / Refresh Staff Accounts”
-when you intentionally want to contact Supabase.
-</div>
-</div>
-
 </div>
 </section>
 
