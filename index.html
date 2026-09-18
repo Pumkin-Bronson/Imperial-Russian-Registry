@@ -6606,16 +6606,28 @@ function personAlreadyHasAction(person, action) {
 
     if(action.type === "rank") {
 
-        const history = Array.isArray(person.rankHistory)
-            ? person.rankHistory
-            : [];
+        /*
+           Rank possession is CURRENT-STATE only.
+
+           rankHistory remains a historical service record and must not
+           prevent a previously stripped/demoted-to-None rank from being
+           awarded again later.
+
+           Therefore, once the current rank is None / Unranked / empty,
+           the person is treated as possessing zero ranks for Staff Desk
+           eligibility, even if that same rank exists in rankHistory.
+        */
+
+        if(!personCurrentlyHasRank(person)) {
+
+            return false;
+
+        }
 
         return (
-            normalizeRobloxUsername(person.rank) === normalizeRobloxUsername(action.value)
-            ||
-            history.some(entry =>
-                normalizeRobloxUsername(entry.rank) === normalizeRobloxUsername(action.value)
-            )
+            normalizeRobloxUsername(person.rank)
+            ===
+            normalizeRobloxUsername(action.value)
         );
 
     }
