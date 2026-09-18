@@ -6634,6 +6634,11 @@ function personAlreadyHasAction(person, action) {
 
     if(action.type === "medal") {
 
+        /*
+           Medal / award possession is CURRENT-STATE only.
+           A stripped decoration is removed from person.medals; historical
+           serviceEvents remain as history but do not block a future re-award.
+        */
         const medals = Array.isArray(person.medals)
             ? person.medals
             : [];
@@ -6646,16 +6651,25 @@ function personAlreadyHasAction(person, action) {
 
     if(action.type === "title") {
 
-        const history = Array.isArray(person.titleHistory)
-            ? person.titleHistory
-            : [];
+        /*
+           Title possession is CURRENT-STATE only.
+           titleHistory is historical evidence only and must not prevent
+           a removed/stripped title from being granted again later.
+        */
+        const currentTitle = String(person.title || "").trim();
+
+        if(
+            !currentTitle
+            ||
+            normalizeRobloxUsername(currentTitle) === normalizeRobloxUsername("None")
+        ) {
+            return false;
+        }
 
         return (
-            normalizeRobloxUsername(person.title) === normalizeRobloxUsername(action.value)
-            ||
-            history.some(entry =>
-                normalizeRobloxUsername(entry.title) === normalizeRobloxUsername(action.value)
-            )
+            normalizeRobloxUsername(currentTitle)
+            ===
+            normalizeRobloxUsername(action.value)
         );
 
     }
@@ -6974,7 +6988,7 @@ function updateQuickRecorder() {
         ) {
 
             warningBox.textContent =
-            "User has already possessed a rank";
+            "User currently possesses a rank";
 
             warningBox.classList.add("warning");
 
@@ -6993,7 +7007,7 @@ function updateQuickRecorder() {
             warningBox.textContent =
             action.type === "campaign"
             ? "User has already recorded participation in this campaign."
-            : "User already possessed the award or title.";
+            : "User currently possesses this award or title.";
 
             warningBox.classList.add("warning");
 
@@ -7143,7 +7157,7 @@ function submitQuickRecord() {
     ) {
 
         warningBox.textContent =
-        "User has already possessed a rank";
+        "User currently possesses a rank";
 
         warningBox.classList.add("warning");
         return;
@@ -7156,7 +7170,7 @@ function submitQuickRecord() {
         warningBox.textContent =
         action.type === "campaign"
         ? "User has already recorded participation in this campaign."
-        : "User already possessed the award or title.";
+        : "User currently possesses this award or title.";
 
         warningBox.classList.add("warning");
         return;
@@ -7707,6 +7721,10 @@ function submitUnitTransfer() {
     const oldUnit = String(person.unit || "").trim();
     const newUnit = String(destination.title || "").trim();
 
+    /*
+       Regiment / unit possession is CURRENT-STATE only.
+       unitHistory does not block reassignment to a formation previously held.
+    */
     if(oldUnit && normalizeRobloxUsername(oldUnit) === normalizeRobloxUsername(newUnit)){
         message.className="quick-feedback warning";
         message.textContent="User is already assigned to this regiment / unit.";
