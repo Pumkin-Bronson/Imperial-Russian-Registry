@@ -793,7 +793,60 @@ main {
 }
 
 /* PERSONNEL VIEW SWITCHER + BULK UNIT MEMBERSHIP TRANSFER */
-.personnel-view-toolbar{display:flex;justify-content:flex-end;gap:8px;margin:0 0 14px}.personnel-view-btn{border:1px solid var(--border);background:#fffdf8;padding:8px 13px;font-family:Arial,sans-serif;font-size:12px;font-weight:bold}.personnel-view-btn.active{background:var(--red);color:#fff;border-color:var(--red)}.personnel-spreadsheet{display:none}.personnel-spreadsheet.active{display:block}.personnel-card-view.hidden-view{display:none}.personnel-sheet-table{min-width:1200px}.personnel-sheet-table td,.personnel-sheet-table th{font-family:Arial,sans-serif;font-size:12px;vertical-align:top}.personnel-sheet-open{border:none;background:#e9dfce;padding:6px 9px;font-weight:bold}.unit-membership-transfer-registry{background:var(--cream);border:2px solid #424750;border-radius:14px;padding:34px;margin:0 0 28px}.unit-membership-transfer-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:end}.unit-membership-summary{margin-top:16px;padding:14px 16px;background:#fffdf8;border:1px solid var(--border);font-family:Arial,sans-serif;font-size:13px}@media(max-width:900px){.unit-membership-transfer-grid{grid-template-columns:1fr}.personnel-view-toolbar{justify-content:flex-start}}
+.personnel-view-toolbar{display:flex;justify-content:flex-end;gap:8px;margin:0 0 14px}.personnel-view-btn{border:1px solid var(--border);background:#fffdf8;padding:8px 13px;font-family:Arial,sans-serif;font-size:12px;font-weight:bold}.personnel-view-btn.active{background:var(--red);color:#fff;border-color:var(--red)}.personnel-spreadsheet{display:none}.personnel-spreadsheet.active{display:block}.personnel-card-view.hidden-view{display:none}
+
+/* Spreadsheet view: true fixed-column matrix */
+.personnel-spreadsheet .table-container{
+    overflow-x:auto;
+    overflow-y:visible;
+}
+.personnel-sheet-table{
+    width:max-content;
+    min-width:100%;
+    table-layout:fixed;
+    border-collapse:collapse;
+}
+.personnel-sheet-table th,
+.personnel-sheet-table td{
+    font-family:Arial,sans-serif;
+    font-size:12px;
+    vertical-align:middle;
+    white-space:normal;
+    word-break:normal;
+    overflow-wrap:break-word;
+    border-right:1px solid var(--border);
+    min-width:150px;
+    width:150px;
+    max-width:150px;
+    padding:10px 9px;
+}
+.personnel-sheet-table th.sheet-col-name,
+.personnel-sheet-table td.sheet-col-name{min-width:155px;width:155px;max-width:155px}
+.personnel-sheet-table th.sheet-col-username,
+.personnel-sheet-table td.sheet-col-username{min-width:175px;width:175px;max-width:175px}
+.personnel-sheet-table th.sheet-col-id,
+.personnel-sheet-table td.sheet-col-id{min-width:120px;width:120px;max-width:120px}
+.personnel-sheet-table th.sheet-col-rank,
+.personnel-sheet-table td.sheet-col-rank{min-width:165px;width:165px;max-width:165px}
+.personnel-sheet-table th.sheet-col-title,
+.personnel-sheet-table td.sheet-col-title{min-width:130px;width:130px;max-width:130px}
+.personnel-sheet-table th.sheet-col-unit,
+.personnel-sheet-table td.sheet-col-unit{min-width:180px;width:180px;max-width:180px}
+.personnel-sheet-table th.sheet-col-medal,
+.personnel-sheet-table td.sheet-col-medal{min-width:190px;width:190px;max-width:190px}
+.personnel-sheet-table th.sheet-col-status,
+.personnel-sheet-table td.sheet-col-status{min-width:90px;width:90px;max-width:90px}
+.personnel-sheet-table th.sheet-col-record,
+.personnel-sheet-table td.sheet-col-record{min-width:80px;width:80px;max-width:80px}
+.personnel-sheet-table thead th{
+    position:sticky;
+    top:0;
+    z-index:2;
+}
+.personnel-sheet-table td.sheet-empty-medal{
+    background:rgba(255,255,255,.16);
+}
+.personnel-sheet-open{border:none;background:#e9dfce;padding:6px 9px;font-weight:bold}.unit-membership-transfer-registry{background:var(--cream);border:2px solid #424750;border-radius:14px;padding:34px;margin:0 0 28px}.unit-membership-transfer-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:end}.unit-membership-summary{margin-top:16px;padding:14px 16px;background:#fffdf8;border:1px solid var(--border);font-family:Arial,sans-serif;font-size:13px}@media(max-width:900px){.unit-membership-transfer-grid{grid-template-columns:1fr}.personnel-view-toolbar{justify-content:flex-start}}
 
 /* =========================================================
    TABLES
@@ -1716,7 +1769,7 @@ Select a personnel record to open the service passport.
 </div>
 
 <div id="personnelSpreadsheet" class="personnel-spreadsheet">
-<div class="table-container"><table class="personnel-sheet-table"><thead><tr><th>Character Name</th><th>Roblox Username</th><th>Roblox ID</th><th>Rank</th><th>Title</th><th>Regiment / Unit</th><th>Medals / Honours</th><th>Status</th><th>Record</th></tr></thead><tbody id="personnelSpreadsheetBody"></tbody></table></div>
+<div class="table-container"><table class="personnel-sheet-table"><thead id="personnelSpreadsheetHead"></thead><tbody id="personnelSpreadsheetBody"></tbody></table></div>
 </div>
 
 </section>
@@ -3364,33 +3417,103 @@ function openPersonnelFromSpreadsheet(personID) {
 }
 
 function renderPersonnelSpreadsheet(rows) {
+    const head = document.getElementById("personnelSpreadsheetHead");
     const body = document.getElementById("personnelSpreadsheetBody");
-    if(!body) return;
+    if(!head || !body) return;
+
+    /*
+       TRUE SPREADSHEET MATRIX:
+       Every medal / honour has one permanent column shared by every person.
+       If a person does not currently possess that medal, the corresponding
+       cell is intentionally left blank. Nothing shifts left or right.
+    */
+    const medalSelect = document.getElementById("quickActionValue");
+    let medalColumns = [];
+
+    if(medalSelect) {
+        medalColumns = Array.from(medalSelect.options)
+            .map(option => String(option.value || ""))
+            .filter(value => value.startsWith("medal::"))
+            .map(value => value.slice("medal::".length).trim())
+            .filter(Boolean);
+    }
+
+    /* Include any currently-held medal not present in the Staff Desk catalogue. */
+    rows.forEach(person => {
+        const held = Array.isArray(person.medals) ? person.medals : [];
+        held.forEach(medal => {
+            const name = typeof medal === "string"
+                ? medal
+                : (medal?.name || medal?.title || medal?.item || "");
+            const clean = String(name || "").trim();
+            if(
+                clean &&
+                !medalColumns.some(existing =>
+                    normalizeRobloxUsername(existing) === normalizeRobloxUsername(clean)
+                )
+            ) {
+                medalColumns.push(clean);
+            }
+        });
+    });
+
+    head.innerHTML = `
+        <tr>
+            <th class="sheet-col-name">Character Name</th>
+            <th class="sheet-col-username">Roblox Username</th>
+            <th class="sheet-col-id">Roblox ID</th>
+            <th class="sheet-col-rank">Rank</th>
+            <th class="sheet-col-title">Title</th>
+            <th class="sheet-col-unit">Regiment / Unit</th>
+            ${medalColumns.map(name =>
+                `<th class="sheet-col-medal">${escapeHTML(name)}</th>`
+            ).join("")}
+            <th class="sheet-col-status">Status</th>
+            <th class="sheet-col-record">Record</th>
+        </tr>
+    `;
 
     if(!rows.length) {
-        body.innerHTML = `<tr><td colspan="9" class="empty-message">No personnel records match this search.</td></tr>`;
+        body.innerHTML = `
+            <tr>
+                <td colspan="${8 + medalColumns.length}" class="empty-message">
+                    No personnel records match this search.
+                </td>
+            </tr>`;
         return;
     }
 
     body.innerHTML = rows.map(person => {
-        const medals = Array.isArray(person.medals)
+        const heldMedals = Array.isArray(person.medals)
             ? person.medals
-                .map(medal => typeof medal === "string" ? medal : (medal.name || medal.title || medal.item || ""))
+                .map(medal => typeof medal === "string"
+                    ? medal
+                    : (medal?.name || medal?.title || medal?.item || ""))
+                .map(name => String(name || "").trim())
                 .filter(Boolean)
-                .join(", ")
-            : "";
+            : [];
+
+        const medalCells = medalColumns.map(columnName => {
+            const possesses = heldMedals.some(held =>
+                normalizeRobloxUsername(held) === normalizeRobloxUsername(columnName)
+            );
+
+            return possesses
+                ? `<td class="sheet-col-medal">${escapeHTML(columnName)}</td>`
+                : `<td class="sheet-col-medal sheet-empty-medal"></td>`;
+        }).join("");
 
         return `
         <tr>
-            <td>${escapeHTML(person.name || "—")}</td>
-            <td>@${escapeHTML(person.username || "—")}</td>
-            <td>${escapeHTML(String(person.robloxId || person.robloxID || "—"))}</td>
-            <td>${escapeHTML(person.rank || "None")}</td>
-            <td>${escapeHTML(person.title || "None")}</td>
-            <td>${escapeHTML(person.unit || "Unassigned")}</td>
-            <td>${escapeHTML(medals || "None")}</td>
-            <td>${escapeHTML(person.status || "Active")}</td>
-            <td>
+            <td class="sheet-col-name">${escapeHTML(person.name || "—")}</td>
+            <td class="sheet-col-username">@${escapeHTML(person.username || "—")}</td>
+            <td class="sheet-col-id">${escapeHTML(String(person.robloxId || person.robloxID || "—"))}</td>
+            <td class="sheet-col-rank">${escapeHTML(person.rank || "None")}</td>
+            <td class="sheet-col-title">${escapeHTML(person.title || "None")}</td>
+            <td class="sheet-col-unit">${escapeHTML(person.unit || "Unassigned")}</td>
+            ${medalCells}
+            <td class="sheet-col-status">${escapeHTML(person.status || "Active")}</td>
+            <td class="sheet-col-record">
                 <button
                     class="personnel-sheet-open"
                     type="button"
