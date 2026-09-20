@@ -820,8 +820,6 @@ main {
     max-width:150px;
     padding:10px 9px;
 }
-.personnel-sheet-table th.sheet-col-name,
-.personnel-sheet-table td.sheet-col-name{min-width:155px;width:155px;max-width:155px}
 .personnel-sheet-table th.sheet-col-username,
 .personnel-sheet-table td.sheet-col-username{min-width:175px;width:175px;max-width:175px}
 .personnel-sheet-table th.sheet-col-id,
@@ -3459,7 +3457,6 @@ function renderPersonnelSpreadsheet(rows) {
 
     head.innerHTML = `
         <tr>
-            <th class="sheet-col-name">Character Name</th>
             <th class="sheet-col-username">Roblox Username</th>
             <th class="sheet-col-id">Roblox ID</th>
             <th class="sheet-col-rank">Rank</th>
@@ -3476,7 +3473,7 @@ function renderPersonnelSpreadsheet(rows) {
     if(!rows.length) {
         body.innerHTML = `
             <tr>
-                <td colspan="${8 + medalColumns.length}" class="empty-message">
+                <td colspan="${7 + medalColumns.length}" class="empty-message">
                     No personnel records match this search.
                 </td>
             </tr>`;
@@ -3505,7 +3502,6 @@ function renderPersonnelSpreadsheet(rows) {
 
         return `
         <tr>
-            <td class="sheet-col-name">${escapeHTML(person.name || "—")}</td>
             <td class="sheet-col-username">@${escapeHTML(person.username || "—")}</td>
             <td class="sheet-col-id">${escapeHTML(String(person.robloxId || person.robloxID || "—"))}</td>
             <td class="sheet-col-rank">${escapeHTML(person.rank || "None")}</td>
