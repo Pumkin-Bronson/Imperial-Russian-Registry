@@ -4839,7 +4839,41 @@ function confirmServiceHistoryRemoval() {
 
 
     ensureServiceCollections(person);
+    ensureServiceHistoryRecordIDs(person);
 
+    const removedId = pendingServiceHistoryRemoval.historyId;
+    const isVisible = entry => entry && !person.hiddenServiceHistoryIds.includes(entry._serviceHistoryId);
+    const sameValue = (a,b) => normalizeRobloxUsername(String(a || "")) === normalizeRobloxUsername(String(b || ""));
+    const collections = [
+        ["rank", person.rankHistory, "rank", "rank"],
+        ["title", person.titleHistory, "title", "title"],
+        ["medal", person.medals, "name", "medals"],
+        ["campaign", person.campaignHistory, "campaign", "campaignHistory"],
+        ["unit", person.unitHistory, "unit", "unit"]
+    ];
+    for(const [kind, entries, field] of collections) {
+        const index = entries.findIndex(entry => entry && entry._serviceHistoryId === removedId);
+        if(index < 0) continue;
+        const removed = entries[index];
+        const value = removed[field] || (kind === "campaign" ? removed.name : "");
+        // A historical record is not itself a current possession. Only clear the
+        // matching current assignment if no later, still-visible grant supersedes it.
+        const laterMatching = entries.slice(index + 1).some(entry =>
+            isVisible(entry) && sameValue(entry[field] || (kind === "campaign" ? entry.name : ""), value)
+        );
+        if(kind === "rank" && sameValue(person.rank, value) && !laterMatching) person.rank = "Unranked";
+        if(kind === "title" && sameValue(person.title, value) && !laterMatching) person.title = "None";
+        if(kind === "unit" && sameValue(person.unit, value) && !laterMatching) person.unit = "";
+        if(kind === "medal" && !laterMatching) {
+            const medalIndex = person.medals.findIndex(entry => entry._serviceHistoryId === removedId);
+            if(medalIndex >= 0) person.medals.splice(medalIndex, 1);
+        }
+        if(kind === "campaign") {
+            // Remove the exact campaign participation, not another entry with the same name.
+            entries.splice(index, 1);
+        }
+        break;
+    }
 
     if(
         !person.hiddenServiceHistoryIds.includes(
@@ -6805,7 +6839,8 @@ function personAlreadyHasAction(person, action) {
             : [];
 
         return history.some(entry =>
-            normalizeRobloxUsername(entry.campaign || entry.name || "")
+            !person.hiddenServiceHistoryIds?.includes(entry._serviceHistoryId)
+            && normalizeRobloxUsername(entry.campaign || entry.name || "")
             ===
             normalizeRobloxUsername(action.value)
         );
@@ -7111,7 +7146,7 @@ function updateQuickRecorder() {
         ) {
 
             warningBox.textContent =
-            "User currently possesses a rank";
+            "User currently possesses this exact rank.";
 
             warningBox.classList.add("warning");
 
@@ -7277,6 +7312,8 @@ function submitQuickRecord() {
         action.type === "rank"
         &&
         personCurrentlyHasRank(person)
+        &&
+        normalizeRobloxUsername(person.rank) === normalizeRobloxUsername(action.value)
     ) {
 
         warningBox.textContent =
@@ -7689,7 +7726,8 @@ function submitCampaignRecord() {
 
     const duplicate =
     person.campaignHistory.some(entry =>
-        normalizeRobloxUsername(entry.campaign || entry.name || "")
+        !person.hiddenServiceHistoryIds?.includes(entry._serviceHistoryId)
+        && normalizeRobloxUsername(entry.campaign || entry.name || "")
         ===
         normalizeRobloxUsername(campaignName)
     );
