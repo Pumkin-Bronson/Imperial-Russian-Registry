@@ -2183,7 +2183,8 @@ The selected date and note will be stored with the rank, medal or title record.
     <div class="campaign-record-grid">
         <label>
         Roblox Username
-        <select id="campaignRecordPerson"></select>
+        <input id="campaignRecordPerson" type="text" autocomplete="off" placeholder="Enter Roblox Username" oninput="updateCampaignUsernameSuggestions()">
+        <div id="campaignUsernameSuggestions" class="username-suggestions"></div>
         </label>
 
         <label>
@@ -4737,7 +4738,7 @@ function requestServiceHistoryRemoval(
 
     const person =
     personnel.find(item =>
-        item.id === personID
+        normalizeRobloxUsername(item.username || "") === campaignUsername
     );
 
 
@@ -7507,6 +7508,8 @@ function toggleCampaignUsernameSync() {
 
     campaignSelect.disabled =
     enabled;
+    const suggestions = document.getElementById("campaignUsernameSuggestions");
+    if(suggestions) suggestions.replaceChildren();
 
 
     if(message) {
@@ -7523,132 +7526,56 @@ function toggleCampaignUsernameSync() {
 
 
 function syncQuickRecorderUsernameToCampaign() {
-
-    if(!isCampaignUsernameSyncEnabled()) {
-        return;
-    }
-
-
-    const campaignSelect =
-    document.getElementById("campaignRecordPerson");
-
-    const quickUsername =
-    document.getElementById("quickRobloxUsername");
-
-    const message =
-    document.getElementById("campaignRecordMessage");
-
-
-    if(!campaignSelect || !quickUsername) {
-        return;
-    }
-
-
-    const typed =
-    normalizeRobloxUsername(quickUsername.value);
-
-
-    const person =
-    personnel.find(item =>
-        normalizeRobloxUsername(item.username || "")
-        ===
-        typed
-    );
-
-
-    if(person) {
-
-        campaignSelect.value =
-        person.id;
-
-
-        if(message) {
-            message.textContent =
-            "Campaign username synced from Personnel Action Recorder: @"
-            +
-            (person.username || "");
-
-            message.className =
-            "quick-feedback success";
-        }
-
-    }
-
-    else {
-
-        campaignSelect.value = "";
-
-
-        if(message) {
-            message.textContent =
-            quickUsername.value.trim()
-            ?
-            "No existing personnel profile matches the Roblox username entered in the Personnel Action Recorder."
-            :
-            "Enter an existing Roblox username in the Personnel Action Recorder.";
-
-            message.className =
-            "quick-feedback warning";
-        }
-
-    }
-
+    if(!isCampaignUsernameSyncEnabled()) return;
+    const field = document.getElementById("campaignRecordPerson");
+    const quick = document.getElementById("quickRobloxUsername");
+    if(!field || !quick) return;
+    field.value = quick.value;
+    updateCampaignUsernameSuggestions();
 }
 
+function updateCampaignUsernameSuggestions() {
+    const field = document.getElementById("campaignRecordPerson");
+    const suggestions = document.getElementById("campaignUsernameSuggestions");
+    const message = document.getElementById("campaignRecordMessage");
+    if(!field || !suggestions) return;
+    const typed = normalizeRobloxUsername(field.value);
+    suggestions.replaceChildren();
+    if(message) { message.textContent = ""; message.className = "quick-feedback"; }
+    if(!typed || field.disabled) return;
+    const matches = personnel.filter(person =>
+        normalizeRobloxUsername(person.username || "").includes(typed)
+    ).sort((a,b) => String(a.username || "").localeCompare(String(b.username || ""))).slice(0, 8);
+    matches.forEach(person => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "username-suggestion";
+        const name = document.createElement("strong");
+        name.textContent = "@" + (person.username || "");
+        button.appendChild(name);
+        button.addEventListener("click", () => {
+            field.value = person.username || "";
+            suggestions.replaceChildren();
+        });
+        suggestions.appendChild(button);
+    });
+    if(!matches.length && message) {
+        message.textContent = "No existing personnel profile matches that Roblox username.";
+        message.className = "quick-feedback warning";
+    }
+}
 
 /* =========================================================
    CAMPAIGN RECORD
    ========================================================= */
 
 function renderCampaignRecordRegistry() {
-
-    const select =
-    document.getElementById("campaignRecordPerson");
-
-    if(!select) {
-        return;
-    }
-
-    const previous =
-    select.value;
-
-    select.innerHTML =
-    '<option value="">Select existing Roblox username...</option>'
-    +
-    personnel
-    .slice()
-    .sort((a,b) =>
-        String(a.username || "")
-        .localeCompare(String(b.username || ""))
-    )
-    .map(person => `
-        <option value="${escapeHTML(person.id)}">
-        @${escapeHTML(person.username || person.name || person.id)}
-        </option>
-    `)
-    .join("");
-
-    if(
-        previous
-        &&
-        personnel.some(person =>
-            person.id === previous
-        )
-    ) {
-        select.value = previous;
-    }
-
-
-    select.disabled =
-    isCampaignUsernameSyncEnabled();
-
-
-    if(isCampaignUsernameSyncEnabled()) {
-        syncQuickRecorderUsernameToCampaign();
-    }
-
+    const field = document.getElementById("campaignRecordPerson");
+    if(!field) return;
+    field.disabled = isCampaignUsernameSyncEnabled();
+    if(isCampaignUsernameSyncEnabled()) syncQuickRecorderUsernameToCampaign();
+    else updateCampaignUsernameSuggestions();
 }
-
 
 function setCampaignRecordDateToday() {
 
@@ -7671,8 +7598,8 @@ function submitCampaignRecord() {
         return;
     }
 
-    const personID =
-    document.getElementById("campaignRecordPerson").value;
+    const campaignUsername =
+    normalizeRobloxUsername(document.getElementById("campaignRecordPerson").value);
 
     const campaignName =
     document.getElementById("campaignRecordName").value.trim();
@@ -7708,7 +7635,7 @@ function submitCampaignRecord() {
 
     if(!person) {
         message.className = "quick-feedback warning";
-        message.textContent = "Please select a personnel record.";
+        message.textContent = "Enter or select an existing Roblox username.";
         return;
     }
 
