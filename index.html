@@ -1394,6 +1394,11 @@ th {
 .flag-record-btn{margin-top:10px;border:1px solid var(--red);background:#fff8f6;color:var(--dark-red);padding:8px 12px;font-family:Arial,sans-serif;font-size:12px;font-weight:bold}.profile-review-status{margin-top:10px;padding:9px 12px;border:1px solid #b48b54;background:#fff6df;color:#7a4d00;font-family:Arial,sans-serif;font-size:12px;font-weight:bold}.review-queue{background:var(--light-cream);border:1px solid var(--gold);padding:28px}.review-card{border:1px solid var(--border);background:#fffdf8;padding:18px;margin-top:14px}.review-card-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.review-status{font-family:Arial,sans-serif;font-size:11px;font-weight:bold;text-transform:uppercase;color:var(--red)}.review-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.review-note{margin-top:10px;padding:10px;background:#f5eee2;border-left:3px solid var(--gold);font-family:Arial,sans-serif;font-size:12px}.account-management{margin-top:0}.flag-target-summary{margin-top:10px;padding:10px;border:1px solid var(--border);background:#fffdf8;font-family:Arial,sans-serif;font-size:12px}
 
 /* =========================================================
+/* Review Queue: administrator-only deletion control. */
+.review-card-controls{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.review-delete-btn{border:1px solid #9d7777;background:#fff8f6;color:var(--dark-red);width:28px;height:28px;padding:0;font-family:Arial,sans-serif;font-size:20px;line-height:1;font-weight:bold}
+.review-delete-btn:hover{background:#f4dddd}
+
    MOBILE
    ========================================================= */
 
@@ -2516,8 +2521,8 @@ localStorage.setItem("vamPersonnel", JSON.stringify(personnel));
 
 
 let auditLog =
-JSON.parse(localStorage.getItem("vamAudit"))
-|| [];
+(JSON.parse(localStorage.getItem("vamAudit")) || []).slice(-40);
+localStorage.setItem("vamAudit", JSON.stringify(auditLog));
 
 
 let unitRoster =
@@ -2992,7 +2997,7 @@ function saveData() {
 
     localStorage.setItem(
         "vamAudit",
-        JSON.stringify(auditLog)
+        JSON.stringify(auditLog.slice(-40))
     );
 
 
@@ -8473,6 +8478,7 @@ function renderReviewQueue(){
     if(!box) return;
 
     const rows = [...recordFlags];
+    const canDeleteReviewFlags = userRole === "staff" && staffRole === "admin";
 
     if(!rows.length){
         box.innerHTML =
@@ -8495,7 +8501,10 @@ function renderReviewQueue(){
                         on ${escapeHTML(f.flaggedDate)}
                     </div>
                 </div>
-                <div class="review-status">${escapeHTML(f.status)}</div>
+                <div class="review-card-controls">
+                    <div class="review-status">${escapeHTML(f.status)}</div>
+                    ${canDeleteReviewFlags ? `<button type="button" class="review-delete-btn" title="Delete this review queue record" aria-label="Delete review queue record" onclick="deleteReviewQueueRecord('${escapeJS(f.id)}')">×</button>` : ""}
+                </div>
             </div>
 
             <div class="review-note">${escapeHTML(f.reason)}</div>
@@ -8528,6 +8537,38 @@ function renderReviewQueue(){
             }
         </div>`;
     }).join("");
+}
+
+async function deleteReviewQueueRecord(flagId) {
+    if(userRole !== "staff" || staffRole !== "admin") return;
+    const flag = recordFlags.find(item => item.id === flagId);
+    if(!flag) return;
+    if(!confirm("Permanently delete this Review Queue entry for @" +
+        (flag.username || "Unknown") + "? This will not delete the personnel profile or its service records.")) return;
+
+    try {
+        const {data: authData, error: authError} = await supabaseClient.auth.getUser();
+        if(authError) throw authError;
+        if(!authData?.user?.id) throw new Error("Administrator authentication is required.");
+        const {data: deleted, error} = await supabaseClient
+            .from("registry_record_flags")
+            .delete()
+            .eq("id", flagId)
+            .select("id");
+        if(error) throw error;
+        if(!deleted?.some(item => item.id === flagId)) {
+            throw new Error("The review record was not deleted. Check administrator DELETE permissions in Supabase.");
+        }
+        recordFlags = recordFlags.filter(item => item.id !== flagId);
+        localStorage.setItem("vamRecordFlags", JSON.stringify(recordFlags));
+        addAudit("Deleted Review Queue flag for @" + (flag.username || "Unknown"));
+        saveData();
+        renderReviewQueue();
+        if(selectedPerson) openPassport(selectedPerson);
+    } catch(error) {
+        console.error("Could not delete Review Queue record:", error);
+        alert("The Review Queue record could not be deleted. Check administrator permissions in Supabase.");
+    }
 }
 
 async function resolveRecordFlag(flagId,resolution){
@@ -8608,6 +8649,9 @@ function addAudit(action) {
         .toLocaleString()
 
     });
+    // Retain only the 40 most recent actions, discarding the oldest first.
+    if(auditLog.length > 40) auditLog.splice(0, auditLog.length - 40);
+    localStorage.setItem("vamAudit", JSON.stringify(auditLog));
 
 }
 
