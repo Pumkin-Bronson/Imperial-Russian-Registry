@@ -1502,7 +1502,15 @@ th {
 @media(max-width:700px){ .update-editor-grid{grid-template-columns:1fr;} }
 
 
-/* ADMINISTRATOR UNIT TITLE EDITOR */
+/* ADMINISTRATOR UNIT INFO EDITOR */
+.unit-info-date-section{margin-top:22px;padding-top:20px;border-top:1px solid var(--border)}
+.unit-info-date-heading{display:flex;align-items:center;gap:12px}
+.unit-info-date-heading .performance-toggle{margin-top:0;flex-shrink:0}
+.unit-info-date-grid{display:grid;grid-template-columns:minmax(230px,1fr) auto auto;gap:14px;align-items:end}
+.unit-info-date-grid label{margin-top:0}
+.unit-info-date-grid button:disabled,.unit-info-date-grid input:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:900px){.unit-info-date-grid{grid-template-columns:1fr}}
+
 .unit-title-editor-grid{display:grid;grid-template-columns:minmax(250px,1fr) minmax(250px,1fr) auto;gap:16px;align-items:end}
 .unit-title-editor-grid label{margin-top:0}
 @media(max-width:900px){.unit-title-editor-grid{grid-template-columns:1fr}}
@@ -1888,7 +1896,7 @@ Enter
 <!-- ADMINISTRATOR UNIT TITLE EDITOR -->
 <div class="unit-recorder admin-only hidden" id="unitTitleEditor">
   <div class="small-title">FORMATION ADMINISTRATION</div>
-  <h2>Unit Title Editor</h2>
+  <h2>Unit Info Editor</h2>
   <p class="quick-recorder-help">Rename an existing regiment / unit, including archived formations. Its status and current personnel assignments are preserved.</p>
   <div class="unit-title-editor-grid">
     <label>Existing Regiment / Unit
@@ -1900,6 +1908,22 @@ Enter
       <input id="unitTitleEditorInput" type="text" maxlength="200" placeholder="Enter new regiment / unit title" onkeydown="if(event.key==='Enter'){event.preventDefault();submitUnitTitleEditor();}">
     </label>
     <button class="primary-btn unit-enter-btn" type="button" onclick="submitUnitTitleEditor()">Enter</button>
+  </div>
+  <div class="unit-info-date-section">
+    <div class="unit-info-date-heading">
+      <strong>Unit Creation Date</strong>
+      <button id="unitInfoDateToggle" class="performance-toggle" type="button" role="switch" aria-checked="false" aria-label="Enable unit creation date editing" title="Enable creation date editing" onclick="toggleUnitInfoDateEditor()"></button>
+    </div>
+    <p class="quick-recorder-help">Select the unit above, then press the circle to enable creation date editing. Date changes are saved separately from title changes.</p>
+    <div class="unit-info-date-grid">
+      <label>Creation Date
+        <input id="unitInfoDateInput" type="date" disabled onchange="clearSpecialRecordDate('unitInfoDateInput')">
+      </label>
+      <button id="unitInfoBeforeDateBtn" class="secondary-btn unit-date-btn" type="button" disabled onclick="setSpecialRecordDate('unitInfoDateInput','Before September 2026');updateUnitInfoDateDisplay()">Before September 2026</button>
+      <button id="unitInfoDateSaveBtn" class="primary-btn unit-enter-btn" type="button" disabled onclick="submitUnitInfoDateEditor()">Save Date</button>
+    </div>
+    <div id="unitInfoDateDisplay" class="person-meta" aria-live="polite"></div>
+    <div id="unitInfoDateMessage" class="quick-feedback" aria-live="polite"></div>
   </div>
   <div id="unitTitleEditorMessage" class="quick-feedback" aria-live="polite"></div>
 </div>
@@ -9687,6 +9711,89 @@ async function saveWebsiteVersion() {
    Reuses the existing unit-rename routine so personnel links,
    archived status, audit logging and persistence stay consistent.
    ========================================================= */
+/* Date editing is opt-in for each selected unit and never changes its title or status. */
+function resetUnitInfoDateEditor() {
+    const toggle = document.getElementById("unitInfoDateToggle");
+    const input = document.getElementById("unitInfoDateInput");
+    const select = document.getElementById("unitTitleEditorSelect");
+    const unit = unitRoster.find(item => String(item.id) === (select && select.value));
+    if(!toggle || !input) return;
+    toggle.classList.remove("active");
+    toggle.setAttribute("aria-checked", "false");
+    input.disabled = true;
+    document.getElementById("unitInfoBeforeDateBtn").disabled = true;
+    document.getElementById("unitInfoDateSaveBtn").disabled = true;
+    input.value = unit && /^\d{4}-\d{2}-\d{2}$/.test(String(unit.date || "")) ? unit.date : "";
+    clearSpecialRecordDate("unitInfoDateInput");
+    const message = document.getElementById("unitInfoDateMessage");
+    message.textContent = "";
+    message.className = "quick-feedback";
+    updateUnitInfoDateDisplay();
+}
+function updateUnitInfoDateDisplay() {
+    const select = document.getElementById("unitTitleEditorSelect");
+    const unit = unitRoster.find(item => String(item.id) === (select && select.value));
+    const input = document.getElementById("unitInfoDateInput");
+    const display = document.getElementById("unitInfoDateDisplay");
+    if(!display || !input) return;
+    const chosen = input.dataset.specialDate || input.value;
+    display.textContent = unit ? "Current creation date: " + (unit.date || "—") + (chosen && chosen !== unit.date ? " | Selected: " + chosen : "") : "Select a regiment / unit first.";
+}
+function toggleUnitInfoDateEditor() {
+    if(userRole !== "staff" || staffRole !== "admin") return;
+    const select = document.getElementById("unitTitleEditorSelect");
+    const unit = unitRoster.find(item => String(item.id) === (select && select.value));
+    if(!unit) {
+        const message = document.getElementById("unitInfoDateMessage");
+        message.className = "quick-feedback warning";
+        message.textContent = "Select an existing regiment / unit first.";
+        return;
+    }
+    const toggle = document.getElementById("unitInfoDateToggle");
+    const enabled = toggle.getAttribute("aria-checked") !== "true";
+    if(!enabled) { resetUnitInfoDateEditor(); return; }
+    toggle.classList.add("active");
+    toggle.setAttribute("aria-checked", "true");
+    document.getElementById("unitInfoDateInput").disabled = false;
+    document.getElementById("unitInfoBeforeDateBtn").disabled = false;
+    document.getElementById("unitInfoDateSaveBtn").disabled = false;
+}
+async function submitUnitInfoDateEditor() {
+    if(userRole !== "staff" || staffRole !== "admin") return;
+    const toggle = document.getElementById("unitInfoDateToggle");
+    if(!toggle || toggle.getAttribute("aria-checked") !== "true") return;
+    const select = document.getElementById("unitTitleEditorSelect");
+    const unit = unitRoster.find(item => String(item.id) === (select && select.value));
+    const input = document.getElementById("unitInfoDateInput");
+    const message = document.getElementById("unitInfoDateMessage");
+    const warn = text => { message.className = "quick-feedback warning"; message.textContent = text; };
+    if(!unit) return warn("Select an existing regiment / unit.");
+    const date = input.dataset.specialDate || input.value;
+    if(!date || (date !== SPECIAL_RECORD_DATE_BEFORE_SEPTEMBER_2026 && !/^\d{4}-\d{2}-\d{2}$/.test(date))) return warn("Choose a creation date or Before September 2026.");
+    if(date === unit.date) return warn("The creation date has not changed.");
+    if(!confirm(`Change the creation date of ${unit.title} from ${unit.date || "—"} to ${date}?`)) return;
+    const oldDate = unit.date;
+    unit.date = date;
+    // Persist the selected record without altering any other unit or personnel data.
+    try {
+        const user = await getAuthenticatedRegistryUser();
+        if(!user) throw new Error("Administrator session not available.");
+        const { error } = await supabaseClient.from("registry_units").update({ data: unit, updated_at: new Date().toISOString() }).eq("id", unit.id);
+        if(error) throw error;
+        saveData();
+        addAudit("Changed creation date of " + unit.title + " from " + (oldDate || "—") + " to " + date);
+        renderEverything();
+        select.value = String(unit.id);
+        resetUnitInfoDateEditor();
+        message.className = "quick-feedback success";
+        message.textContent = "Creation date saved: " + date + ".";
+    } catch(error) {
+        unit.date = oldDate;
+        console.error("Unit creation date update failed:", error);
+        warn("Could not save the creation date to Supabase. " + (error?.message || ""));
+    }
+}
+
 function renderUnitTitleEditor() {
     const select = document.getElementById("unitTitleEditorSelect");
     if(!select) return;
@@ -9708,6 +9815,7 @@ function updateUnitTitleEditorSelection() {
     input.value = unit ? String(unit.title || "") : "";
     message.textContent = "";
     message.className = "quick-feedback";
+    resetUnitInfoDateEditor();
 }
 
 function submitUnitTitleEditor() {
