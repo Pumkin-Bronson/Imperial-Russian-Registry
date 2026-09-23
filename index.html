@@ -1501,6 +1501,12 @@ th {
 }
 @media(max-width:700px){ .update-editor-grid{grid-template-columns:1fr;} }
 
+
+/* ADMINISTRATOR UNIT TITLE EDITOR */
+.unit-title-editor-grid{display:grid;grid-template-columns:minmax(250px,1fr) minmax(250px,1fr) auto;gap:16px;align-items:end}
+.unit-title-editor-grid label{margin-top:0}
+@media(max-width:900px){.unit-title-editor-grid{grid-template-columns:1fr}}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -1877,6 +1883,25 @@ Enter
 <div id="bulkUnitTransferSummary" class="unit-membership-summary"></div>
 <div id="bulkUnitTransferMessage" class="quick-feedback"></div>
 <button class="primary-btn" type="button" onclick="submitBulkUnitMembershipTransfer()">Transfer All Members</button>
+</div>
+
+<!-- ADMINISTRATOR UNIT TITLE EDITOR -->
+<div class="unit-recorder admin-only hidden" id="unitTitleEditor">
+  <div class="small-title">FORMATION ADMINISTRATION</div>
+  <h2>Unit Title Editor</h2>
+  <p class="quick-recorder-help">Rename an existing regiment / unit, including archived formations. Its status and current personnel assignments are preserved.</p>
+  <div class="unit-title-editor-grid">
+    <label>Existing Regiment / Unit
+      <select id="unitTitleEditorSelect" onchange="updateUnitTitleEditorSelection()">
+        <option value="">Select regiment / unit...</option>
+      </select>
+    </label>
+    <label>New Regiment / Unit Title
+      <input id="unitTitleEditorInput" type="text" maxlength="200" placeholder="Enter new regiment / unit title" onkeydown="if(event.key==='Enter'){event.preventDefault();submitUnitTitleEditor();}">
+    </label>
+    <button class="primary-btn unit-enter-btn" type="button" onclick="submitUnitTitleEditor()">Enter</button>
+  </div>
+  <div id="unitTitleEditorMessage" class="quick-feedback" aria-live="polite"></div>
 </div>
 
 <div id="unitRosterTable">
@@ -9657,6 +9682,66 @@ async function saveWebsiteVersion() {
    RENDER EVERYTHING
    ========================================================= */
 
+/* =========================================================
+   ADMINISTRATOR UNIT TITLE EDITOR
+   Reuses the existing unit-rename routine so personnel links,
+   archived status, audit logging and persistence stay consistent.
+   ========================================================= */
+function renderUnitTitleEditor() {
+    const select = document.getElementById("unitTitleEditorSelect");
+    if(!select) return;
+    const previous = select.value;
+    const units = unitRoster.slice().sort((a,b) =>
+        String(a.title || "").localeCompare(String(b.title || ""))
+    );
+    select.innerHTML = '<option value="">Select regiment / unit...</option>' +
+        units.map(unit => `<option value="${escapeHTML(String(unit.id))}">${escapeHTML(String(unit.title || "Unnamed Unit"))} — ${unit.status === "Archived" ? "Archived" : "Active"}</option>`).join("");
+    if(units.some(unit => String(unit.id) === previous)) select.value = previous;
+}
+
+function updateUnitTitleEditorSelection() {
+    const select = document.getElementById("unitTitleEditorSelect");
+    const input = document.getElementById("unitTitleEditorInput");
+    const message = document.getElementById("unitTitleEditorMessage");
+    if(!select || !input || !message) return;
+    const unit = unitRoster.find(item => String(item.id) === select.value);
+    input.value = unit ? String(unit.title || "") : "";
+    message.textContent = "";
+    message.className = "quick-feedback";
+}
+
+function submitUnitTitleEditor() {
+    if(userRole !== "staff" || staffRole !== "admin") return;
+    const select = document.getElementById("unitTitleEditorSelect");
+    const input = document.getElementById("unitTitleEditorInput");
+    const message = document.getElementById("unitTitleEditorMessage");
+    const unit = unitRoster.find(item => String(item.id) === select.value);
+    const newTitle = String(input.value || "").trim();
+    const warn = text => { message.className = "quick-feedback warning"; message.textContent = text; };
+    if(!unit) return warn("Select an existing regiment / unit.");
+    if(!newTitle) return warn("Enter a new regiment / unit title.");
+    if(normalizeRobloxUsername(newTitle) === normalizeRobloxUsername(unit.title || ""))
+        return warn("Please enter a different name.");
+    if(unitRoster.some(item => item.id !== unit.id && normalizeRobloxUsername(item.title || "") === normalizeRobloxUsername(newTitle)))
+        return warn("Another regiment / unit already uses that name.");
+    const oldTitle = unit.title;
+    if(!confirm(`Rename ${oldTitle} to ${newTitle}? Its Active / Archived status will not change.`)) return;
+    // The existing routine updates personnel assignments and unit history,
+    // logs the change, saves it and refreshes the registry.
+    pendingUnitRename = {unitID: unit.id, originalStatus: unit.status === "Archived" ? "Archived" : "Active"};
+    document.getElementById("unitRenameInput").value = newTitle;
+    confirmUnitRename();
+    if(unit.title === newTitle) {
+        renderUnitTitleEditor();
+        select.value = String(unit.id);
+        input.value = newTitle;
+        message.className = "quick-feedback success";
+        message.textContent = `Renamed ${oldTitle} to ${newTitle}.`;
+    } else {
+        warn("Rename was not completed. Please try again.");
+    }
+}
+
 function renderEverything() {
 
     /*
@@ -9693,6 +9778,7 @@ function renderEverything() {
     renderUnitTransferRegistry();
 
     renderBulkUnitTransferRegistry();
+    renderUnitTitleEditor();
 
     renderCampaignRecordRegistry();
 
