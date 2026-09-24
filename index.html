@@ -687,6 +687,32 @@ main {
     font-weight: bold;
 }
 
+.service-rank-actions {
+    margin-top: 8px;
+    display: flex;
+    justify-content: center;
+    gap: 7px;
+    flex-wrap: wrap;
+}
+
+.service-rank-actions .service-remove-btn {
+    margin-top: 0;
+}
+
+.service-promote-btn {
+    border: none;
+    background: #e9dfce;
+    color: var(--text);
+    padding: 6px 9px;
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+.service-promote-btn:hover {
+    background: #dcccae;
+}
+
 .service-honours-box {
     margin-top: 16px;
     border: 2px solid #424750;
@@ -2335,6 +2361,49 @@ The selected date and note will be stored with the rank, medal or title record.
 <div id="siteVersionBadge" class="site-version">Version —</div>
 
 </section>
+
+
+<div
+id="rankPromotionModal"
+class="registry-modal-backdrop"
+aria-hidden="true">
+
+    <div class="registry-modal">
+
+        <div class="small-title">
+        PERSONNEL RANK ACTION
+        </div>
+
+        <h2>Select Promoted Rank</h2>
+
+        <p id="rankPromotionDescription">
+        Choose the new rank following promotion.
+        Only ranks above the current rank are available.
+        </p>
+
+        <label>
+        New Rank
+
+        <select id="rankPromotionSelect">
+        </select>
+
+        </label>
+
+        <div class="registry-modal-actions">
+
+            <button class="secondary-btn" type="button" onclick="cancelRankPromotion()">
+            Cancel
+            </button>
+
+            <button class="primary-btn" type="button" onclick="confirmRankPromotion()">
+            Confirm Promotion
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
 
 
 <div
@@ -4320,6 +4389,130 @@ function savePassportRobloxId(personID) {
 }
 
 
+let pendingRankPromotion = null;
+
+
+function promoteCurrentRank(personID) {
+
+    if(userRole !== "staff" || staffRole !== "admin") {
+        return;
+    }
+
+    const person = personnel.find(p => p.id === personID);
+    if(!person) return;
+
+    ensureServiceCollections(person);
+
+    const currentRank = String(person.rank || "").trim();
+    const hasCurrentRank = currentRank
+        && normalizeRobloxUsername(currentRank) !== normalizeRobloxUsername("Unranked")
+        && normalizeRobloxUsername(currentRank) !== normalizeRobloxUsername("None");
+
+    let higherRanks = [];
+    let currentIndex = -1;
+
+    if(hasCurrentRank) {
+        currentIndex = getRankHierarchyIndex(currentRank);
+        if(currentIndex === -1) {
+            alert("The current rank is not part of the standard hierarchy, so a promotion cannot be calculated safely.");
+            return;
+        }
+        higherRanks = QUICK_RANKS.slice(0, currentIndex);
+    } else {
+        higherRanks = QUICK_RANKS.slice();
+    }
+
+    if(!higherRanks.length) {
+        alert("No higher rank is available for this user.");
+        return;
+    }
+
+    const reason = prompt("Enter the reason for the promotion:");
+    if(reason === null) return;
+    if(!reason.trim()) {
+        alert("A reason is required.");
+        return;
+    }
+
+    const select = document.getElementById("rankPromotionSelect");
+    select.innerHTML = higherRanks
+        .map(rank => `<option value="${escapeHTML(rank)}">${escapeHTML(rank)}</option>`)
+        .join("");
+
+    pendingRankPromotion = {
+        personID: personID,
+        currentRank: hasCurrentRank ? currentRank : "Unranked",
+        reason: reason.trim()
+    };
+
+    document.getElementById("rankPromotionDescription").textContent = hasCurrentRank
+        ? "Choose a rank above " + currentRank + "."
+        : "Choose the rank to assign as this user's promotion from Unranked status.";
+
+    const modal = document.getElementById("rankPromotionModal");
+    modal.classList.add("active");
+    modal.setAttribute("aria-hidden","false");
+}
+
+
+function cancelRankPromotion() {
+    pendingRankPromotion = null;
+    const modal = document.getElementById("rankPromotionModal");
+    modal.classList.remove("active");
+    modal.setAttribute("aria-hidden","true");
+}
+
+
+function confirmRankPromotion() {
+
+    if(userRole !== "staff" || staffRole !== "admin" || !pendingRankPromotion) {
+        cancelRankPromotion();
+        return;
+    }
+
+    const person = personnel.find(p => p.id === pendingRankPromotion.personID);
+    if(!person) {
+        cancelRankPromotion();
+        return;
+    }
+
+    ensureServiceCollections(person);
+
+    const selectedRank = document.getElementById("rankPromotionSelect").value;
+    if(!selectedRank) return;
+
+    const today = getTodayISO();
+    const formerRank = pendingRankPromotion.currentRank;
+    const reason = pendingRankPromotion.reason;
+
+    person.serviceEvents.push({
+        type: "rank_promoted",
+        date: today,
+        item: selectedRank,
+        former: formerRank,
+        reason: reason
+    });
+
+    person.rank = selectedRank;
+    person.rankHistory.push({
+        rank: selectedRank,
+        date: today,
+        reason: "Promoted from " + formerRank + ": " + reason
+    });
+
+    addAudit(
+        "Promoted " + person.username + " from " + formerRank + " to " + selectedRank + " — " + reason
+    );
+
+    saveData();
+    renderEverything();
+
+    const personID = person.id;
+    cancelRankPromotion();
+    openPassport(personID);
+}
+
+
 let pendingRankDemotion = null;
 
 
@@ -5648,18 +5841,34 @@ function serviceHistorySortValue(dateText) {
                         userRole === "staff"
                         &&
                         staffRole === "admin"
-                        &&
-                        person.rank
-                        &&
-                        person.rank !== "Unranked"
                         ?
                         `
-                        <button
-                        class="service-remove-btn"
-                        type="button"
-                        onclick="removeCurrentRank('${escapeJS(person.id)}')">
-                        Remove / Demote
-                        </button>
+                        <div class="service-rank-actions">
+                            <button
+                            class="service-promote-btn"
+                            type="button"
+                            onclick="promoteCurrentRank('${escapeJS(person.id)}')">
+                            Promote
+                            </button>
+                            ${
+                                person.rank
+                                &&
+                                person.rank !== "Unranked"
+                                &&
+                                normalizeRobloxUsername(person.rank) !== normalizeRobloxUsername("None")
+                                ?
+                                `
+                                <button
+                                class="service-remove-btn"
+                                type="button"
+                                onclick="removeCurrentRank('${escapeJS(person.id)}')">
+                                Remove / Demote
+                                </button>
+                                `
+                                :
+                                ""
+                            }
+                        </div>
                         `
                         :
                         ""
