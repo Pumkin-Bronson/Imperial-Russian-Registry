@@ -5026,7 +5026,7 @@ function requestServiceHistoryRemoval(
 
     const person =
     personnel.find(item =>
-        normalizeRobloxUsername(item.username || "") === campaignUsername
+        String(item.id) === String(personID)
     );
 
 
@@ -5099,6 +5099,8 @@ function confirmServiceHistoryRemoval() {
 
     if(
         userRole !== "staff"
+        ||
+        staffRole !== "admin"
         ||
         !pendingServiceHistoryRemoval
     ) {
