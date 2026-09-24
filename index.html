@@ -5682,11 +5682,41 @@ function serviceHistorySortValue(dateText) {
     `<div class="person-meta">No service history recorded.</div>`;
 
 
+    /* Keep Decorations & Honours in the registry's original medal catalogue
+       order (the order defined in the Personnel Action Recorder), rather
+       than ordering them by the date they were awarded/added.  The original
+       array index is retained so administrator removal still targets the
+       correct decoration record. */
+    const medalCatalogueOrder = (() => {
+        const select = document.getElementById("quickRecordAction");
+        if(!select) return [];
+        return Array.from(select.options)
+            .map(option => String(option.value || ""))
+            .filter(value => value.startsWith("medal::"))
+            .map(value => value.slice("medal::".length).trim());
+    })();
+
+    const medalCatalogueIndex = new Map(
+        medalCatalogueOrder.map((name,index) => [normalizeRobloxUsername(name), index])
+    );
+
+    const orderedCurrentHonours = (Array.isArray(person.medals) ? person.medals : [])
+        .map((medal, originalIndex) => ({ medal, originalIndex }))
+        .sort((a,b) => {
+            const aOrder = medalCatalogueIndex.has(normalizeRobloxUsername(a.medal?.name))
+                ? medalCatalogueIndex.get(normalizeRobloxUsername(a.medal?.name))
+                : Number.MAX_SAFE_INTEGER;
+            const bOrder = medalCatalogueIndex.has(normalizeRobloxUsername(b.medal?.name))
+                ? medalCatalogueIndex.get(normalizeRobloxUsername(b.medal?.name))
+                : Number.MAX_SAFE_INTEGER;
+            return aOrder - bOrder || a.originalIndex - b.originalIndex;
+        });
+
     const currentHonoursHTML =
-    person.medals.length
+    orderedCurrentHonours.length
     ?
-    person.medals
-    .map((medal,index) => `
+    orderedCurrentHonours
+    .map(({medal,originalIndex}) => `
         <div class="service-honour-row">
 
             <strong>
@@ -5707,7 +5737,7 @@ function serviceHistorySortValue(dateText) {
                     <button
                     class="service-remove-btn"
                     type="button"
-                    onclick="removeDecoration('${escapeJS(person.id)}',${index})">
+                    onclick="removeDecoration('${escapeJS(person.id)}',${originalIndex})">
                     Remove Decoration
                     </button>
                 </div>
