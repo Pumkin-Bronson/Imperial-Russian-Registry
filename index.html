@@ -2389,6 +2389,11 @@ aria-hidden="true">
 
         </label>
 
+        <label>
+        Reason for Promotion
+        <textarea id="rankPromotionReason" rows="3" maxlength="2000" placeholder="Enter the reason for promotion..."></textarea>
+        </label>
+
         <div class="registry-modal-actions">
 
             <button class="secondary-btn" type="button" onclick="cancelRankPromotion()">
@@ -4427,13 +4432,6 @@ function promoteCurrentRank(personID) {
         return;
     }
 
-    const reason = prompt("Enter the reason for the promotion:");
-    if(reason === null) return;
-    if(!reason.trim()) {
-        alert("A reason is required.");
-        return;
-    }
-
     const select = document.getElementById("rankPromotionSelect");
     select.innerHTML = higherRanks
         .map(rank => `<option value="${escapeHTML(rank)}">${escapeHTML(rank)}</option>`)
@@ -4441,14 +4439,14 @@ function promoteCurrentRank(personID) {
 
     pendingRankPromotion = {
         personID: personID,
-        currentRank: hasCurrentRank ? currentRank : "Unranked",
-        reason: reason.trim()
+        currentRank: hasCurrentRank ? currentRank : "Unranked"
     };
 
     document.getElementById("rankPromotionDescription").textContent = hasCurrentRank
         ? "Choose a rank above " + currentRank + "."
         : "Choose the rank to assign as this user's promotion from Unranked status.";
 
+    document.getElementById("rankPromotionReason").value = "";
     const modal = document.getElementById("rankPromotionModal");
     modal.classList.add("active");
     modal.setAttribute("aria-hidden","false");
@@ -4483,7 +4481,23 @@ function confirmRankPromotion() {
 
     const today = getTodayISO();
     const formerRank = pendingRankPromotion.currentRank;
-    const reason = pendingRankPromotion.reason;
+    const reason = document.getElementById("rankPromotionReason").value.trim();
+    if(!reason) {
+        alert("Enter the reason for the promotion.");
+        document.getElementById("rankPromotionReason").focus();
+        return;
+    }
+
+    const actualCurrentRank = String(person.rank || "").trim();
+    const currentIndex = getRankHierarchyIndex(actualCurrentRank);
+    const allowedRanks = (!actualCurrentRank || ["unranked", "none"].includes(normalizeRobloxUsername(actualCurrentRank)))
+        ? QUICK_RANKS
+        : (currentIndex < 0 ? [] : QUICK_RANKS.slice(0, currentIndex));
+    if(!allowedRanks.includes(selectedRank)) {
+        alert("The selected rank is no longer a valid promotion. Please reopen Promote.");
+        cancelRankPromotion();
+        return;
+    }
 
     person.serviceEvents.push({
         type: "rank_promoted",
