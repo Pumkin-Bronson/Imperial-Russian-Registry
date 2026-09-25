@@ -2364,6 +2364,22 @@ The selected date and note will be stored with the rank, medal or title record.
 </section>
 
 
+<!-- ADMINISTRATOR TITLE PROMOTION / DEMOTION DIALOG -->
+<div id="titleChangeModal" class="registry-modal-backdrop" aria-hidden="true">
+  <div class="registry-modal">
+    <div class="small-title">PERSONNEL TITLE ACTION</div>
+    <h2 id="titleChangeHeading">Change Title</h2>
+    <p id="titleChangeDescription"></p>
+    <label>New Title
+      <select id="titleChangeSelect"></select>
+    </label>
+    <div class="registry-modal-actions">
+      <button class="secondary-btn" type="button" onclick="cancelTitleChange()">Cancel</button>
+      <button class="primary-btn" type="button" onclick="confirmTitleChange()">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <div
 id="rankPromotionModal"
 class="registry-modal-backdrop"
@@ -4842,89 +4858,119 @@ function confirmRankDemotion() {
 }
 
 
-function removeCurrentTitle(personID) {
+/* Title hierarchy follows the original Personnel Action Recorder order (highest first). */
+let pendingTitleChange = null;
 
-    if(userRole !== "staff" || staffRole !== "admin") {
-
-        return;
-
-    }
-
-
-    const person =
-    personnel.find(p => p.id === personID);
-
-
-    if(
-        !person
-        ||
-        !person.title
-        ||
-        normalizeRobloxUsername(person.title)
-        ===
-        normalizeRobloxUsername("None")
-    ) return;
-
-
-    ensureServiceCollections(person);
-
-
-    const reason =
-    prompt(
-        "Enter the reason for removal of the nobility title:"
+function getTitleHierarchyIndex(title) {
+    return QUICK_TITLES.findIndex(item =>
+        normalizeRobloxUsername(item) === normalizeRobloxUsername(String(title || "").trim())
     );
-
-
-    if(reason === null) return;
-
-
-    if(!reason.trim()) {
-
-        alert("A reason is required.");
-        return;
-
-    }
-
-
-    const removedTitle =
-    person.title;
-
-
-    person.serviceEvents.push({
-        type: "title_removed",
-        date: getTodayISO(),
-        item: removedTitle,
-        reason: reason.trim()
-    });
-
-
-    person.title =
-    "None";
-
-
-    addAudit(
-        "Removed title "
-        +
-        removedTitle
-        +
-        " from "
-        +
-        person.username
-        +
-        " — "
-        +
-        reason.trim()
-    );
-
-
-    saveData();
-
-    renderEverything();
-
-    openPassport(personID);
-
 }
 
+function promoteCurrentTitle(personID) {
+    openTitleChange(personID, "promote");
+}
+
+function removeCurrentTitle(personID) {
+    openTitleChange(personID, "demote");
+}
+
+function openTitleChange(personID, mode) {
+    if(userRole !== "staff" || staffRole !== "admin") return;
+    const person = personnel.find(item => item.id === personID);
+    if(!person) return;
+    ensureServiceCollections(person);
+    const currentTitle = String(person.title || "").trim();
+    const hasTitle = !!currentTitle && normalizeRobloxUsername(currentTitle) !== "none";
+    const currentIndex = getTitleHierarchyIndex(currentTitle);
+    if(mode === "demote" && !hasTitle) {
+        alert("This user does not currently possess a title.");
+        return;
+    }
+    if(mode === "promote" && hasTitle && currentIndex < 0) {
+        alert("The current title is not part of the standard hierarchy. A promotion cannot be calculated safely.");
+        return;
+    }
+    const choices = mode === "promote"
+        ? (hasTitle ? QUICK_TITLES.slice(0, currentIndex) : QUICK_TITLES.slice())
+        : (currentIndex < 0 ? [] : QUICK_TITLES.slice(currentIndex + 1));
+    if(mode === "demote") choices.unshift("None");
+    if(!choices.length) {
+        alert("No higher title is available for this user.");
+        return;
+    }
+    const reason = prompt(mode === "promote"
+        ? "Enter the reason for promotion of the current title:"
+        : "Enter the reason for demotion / removal of the current title:");
+    if(reason === null) return;
+    if(!reason.trim()) {
+        alert("A reason is required.");
+        return;
+    }
+    pendingTitleChange = {personID, mode, currentTitle: hasTitle ? currentTitle : "None", reason: reason.trim()};
+    document.getElementById("titleChangeHeading").textContent = mode === "promote" ? "Select Promoted Title" : "Select Demoted Title";
+    document.getElementById("titleChangeDescription").textContent = mode === "promote"
+        ? (hasTitle ? "Choose a title above " + currentTitle + "." : "Choose the title to grant from None.")
+        : (currentIndex < 0 ? "This title is not in the standard hierarchy. Only None is available."
+            : "Choose a title below " + currentTitle + ", or None to remove the title entirely.");
+    document.getElementById("titleChangeSelect").innerHTML = choices
+        .map(title => `<option value="${escapeHTML(title)}">${escapeHTML(title)}</option>`).join("");
+    const modal = document.getElementById("titleChangeModal");
+    modal.classList.add("active");
+    modal.setAttribute("aria-hidden", "false");
+}
+
+function cancelTitleChange() {
+    pendingTitleChange = null;
+    const modal = document.getElementById("titleChangeModal");
+    modal.classList.remove("active");
+    modal.setAttribute("aria-hidden", "true");
+}
+
+function confirmTitleChange() {
+    if(userRole !== "staff" || staffRole !== "admin" || !pendingTitleChange) {
+        cancelTitleChange();
+        return;
+    }
+    const {personID, mode, currentTitle, reason} = pendingTitleChange;
+    const person = personnel.find(item => item.id === personID);
+    if(!person) { cancelTitleChange(); return; }
+    ensureServiceCollections(person);
+    const actualTitle = String(person.title || "").trim();
+    const actualIndex = getTitleHierarchyIndex(actualTitle);
+    const hasTitle = !!actualTitle && normalizeRobloxUsername(actualTitle) !== "none";
+    if(normalizeRobloxUsername(hasTitle ? actualTitle : "None") !== normalizeRobloxUsername(currentTitle)) {
+        alert("The current title has changed. Please reopen the title action.");
+        cancelTitleChange();
+        return;
+    }
+    const allowed = mode === "promote"
+        ? (hasTitle ? (actualIndex < 0 ? [] : QUICK_TITLES.slice(0, actualIndex)) : QUICK_TITLES.slice())
+        : (hasTitle ? ["None", ...(actualIndex < 0 ? [] : QUICK_TITLES.slice(actualIndex + 1))] : []);
+    const selectedTitle = document.getElementById("titleChangeSelect").value;
+    if(!allowed.includes(selectedTitle)) {
+        alert("The selected title is no longer a valid change. Please reopen the title action.");
+        cancelTitleChange();
+        return;
+    }
+    const today = getTodayISO();
+    if(selectedTitle === "None") {
+        person.serviceEvents.push({type: "title_removed", date: today, item: currentTitle, reason});
+    } else {
+        person.titleHistory.push({
+            title: selectedTitle,
+            date: today,
+            reason: (mode === "promote" ? "Promoted from " : "Demoted from ") + currentTitle + ": " + reason
+        });
+    }
+    person.title = selectedTitle;
+    addAudit((mode === "promote" ? "Promoted " : "Demoted ") + person.username
+        + " from title " + currentTitle + " to " + selectedTitle + " — " + reason);
+    saveData();
+    renderEverything();
+    cancelTitleChange();
+    openPassport(personID);
+}
 
 function removeDecoration(personID, medalIndex) {
 
@@ -5938,33 +5984,17 @@ function serviceHistorySortValue(dateText) {
                 <div class="service-current-box">
 
                     <small>Title</small>
-
-                    <strong>
-                    ${escapeHTML(person.title || "None")}
-                    </strong>
-
-                    ${
-                        userRole === "staff"
-                        &&
-                        staffRole === "admin"
-                        &&
-                        person.title
-                        &&
-                        normalizeRobloxUsername(person.title)
-                        !==
-                        normalizeRobloxUsername("None")
-                        ?
-                        `
-                        <button
-                        class="service-remove-btn"
-                        type="button"
-                        onclick="removeCurrentTitle('${escapeJS(person.id)}')">
-                        Remove Title
-                        </button>
-                        `
-                        :
-                        ""
-                    }
+                    <strong>${escapeHTML(person.title || "None")}</strong>
+                    ${userRole === "staff" && staffRole === "admin" ? `
+                        <div class="service-rank-actions">
+                            <button class="service-promote-btn" type="button"
+                                onclick="promoteCurrentTitle('${escapeJS(person.id)}')">Promote</button>
+                            ${person.title && normalizeRobloxUsername(person.title) !== "none" ? `
+                                <button class="service-remove-btn" type="button"
+                                    onclick="removeCurrentTitle('${escapeJS(person.id)}')">Remove / Demote</button>
+                            ` : ""}
+                        </div>
+                    ` : ""}
 
                 </div>
 
