@@ -2245,7 +2245,8 @@ The selected date and note will be stored with the rank, medal or title record.
     <div class="unit-transfer-grid">
         <label>
         Roblox Username
-        <select id="unitTransferPerson" onchange="updateUnitTransferRegistry()"></select>
+        <input id="unitTransferPerson" type="text" autocomplete="off" placeholder="Search Roblox Username..." oninput="updateUnitTransferRegistry()">
+        <div id="unitTransferSuggestions" class="username-suggestions"></div>
         </label>
 
         <label>
@@ -8082,26 +8083,47 @@ function submitBulkUnitMembershipTransfer(){
    UNIT TRANSFER REGISTRY
    ========================================================= */
 function renderUnitTransferRegistry() {
-    const personSelect=document.getElementById("unitTransferPerson");
+    const personInput=document.getElementById("unitTransferPerson");
     const targetSelect=document.getElementById("unitTransferTarget");
-    if(!personSelect || !targetSelect) return;
-    const previousPerson=personSelect.value;
+    if(!personInput || !targetSelect) return;
     const previousTarget=targetSelect.value;
-    personSelect.innerHTML=personnel.slice().sort((a,b)=>String(a.username||"").localeCompare(String(b.username||""))).map(person=>`<option value="${escapeHTML(person.id)}">@${escapeHTML(person.username || person.name || person.id)}</option>`).join("");
     const activeUnits=unitRoster.filter(unit=>unit.status!=="Archived").slice().sort((a,b)=>String(a.title||"").localeCompare(String(b.title||"")));
     targetSelect.innerHTML='<option value="">Select active regiment / unit...</option>'+activeUnits.map(unit=>`<option value="${escapeHTML(unit.id)}">${escapeHTML(unit.title)} — Commander: ${escapeHTML(unit.commander || "Unassigned")}</option>`).join("");
-    if(previousPerson && personnel.some(person=>person.id===previousPerson)) personSelect.value=previousPerson;
     if(previousTarget && activeUnits.some(unit=>String(unit.id)===String(previousTarget))) targetSelect.value=previousTarget;
     updateUnitTransferRegistry();
 }
 
+function chooseUnitTransferPerson(personID) {
+    const person=personnel.find(item=>String(item.id)===String(personID));
+    const input=document.getElementById("unitTransferPerson");
+    if(!person || !input) return;
+    input.value="@"+String(person.username || person.name || person.id);
+    input.dataset.personId=String(person.id);
+    updateUnitTransferRegistry();
+}
+
+function getUnitTransferPerson() {
+    const input=document.getElementById("unitTransferPerson");
+    if(!input) return null;
+    const query=normalizeRobloxUsername(input.value || "");
+    if(!query) return null;
+    const chosen=personnel.find(item=>String(item.id)===String(input.dataset.personId || ""));
+    if(chosen && normalizeRobloxUsername(chosen.username || chosen.name || "")===query) return chosen;
+    return personnel.find(item=>normalizeRobloxUsername(item.username || item.name || "")===query) || null;
+}
+
 function updateUnitTransferRegistry() {
-    const personSelect=document.getElementById("unitTransferPerson");
+    const input=document.getElementById("unitTransferPerson");
     const currentBox=document.getElementById("unitTransferCurrent");
     const message=document.getElementById("unitTransferMessage");
-    if(!personSelect || !currentBox || !message) return;
-    const person=personnel.find(item=>item.id===personSelect.value);
-    if(!person){ currentBox.textContent="No personnel selected."; message.textContent=""; message.className="quick-feedback"; return; }
+    const suggestions=document.getElementById("unitTransferSuggestions");
+    if(!input || !currentBox || !message) return;
+    const query=normalizeRobloxUsername(input.value || "");
+    const person=getUnitTransferPerson();
+    if(suggestions){
+        suggestions.innerHTML=query && !person ? personnel.filter(item=>normalizeRobloxUsername(item.username || item.name || "").includes(query)).slice(0,8).map(item=>`<button type="button" class="username-suggestion" onclick="chooseUnitTransferPerson('${escapeJS(String(item.id))}')"><strong>@${escapeHTML(item.username || item.name || item.id)}</strong><small>${escapeHTML(item.rank || "No rank recorded")} • ${escapeHTML(item.id || "Existing record")}</small></button>`).join("") : "";
+    }
+    if(!person){ currentBox.textContent=query ? "Select an existing Roblox username from the search results." : "No personnel selected."; message.textContent=""; message.className="quick-feedback"; return; }
     currentBox.innerHTML="<strong>Current Regiment / Unit:</strong> "+escapeHTML(person.unit || "Unassigned");
     message.textContent=""; message.className="quick-feedback";
 }
@@ -8109,10 +8131,9 @@ function updateUnitTransferRegistry() {
 function submitUnitTransfer() {
     if(userRole !== "staff" && userRole !== "admin") return;
 
-    const personID = document.getElementById("unitTransferPerson").value;
+    const person = getUnitTransferPerson();
     const targetValue = document.getElementById("unitTransferTarget").value;
     const message = document.getElementById("unitTransferMessage");
-    const person = personnel.find(item => String(item.id) === String(personID));
 
     if(!person){
         message.className="quick-feedback warning";
