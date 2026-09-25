@@ -7947,9 +7947,11 @@ function submitCampaignRecord() {
     const message =
     document.getElementById("campaignRecordMessage");
 
+    // Resolve the selected or synchronised username to its personnel record.
+    // personID is not defined in this recorder's scope.
     const person =
     personnel.find(item =>
-        item.id === personID
+        normalizeRobloxUsername(item.username) === campaignUsername
     );
 
     if(
