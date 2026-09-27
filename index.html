@@ -359,19 +359,17 @@ main {
     align-content: start;
 }
 
-/* Personnel Record View: keep the name list and opened profile on
-   separate vertical scroll areas so scrolling one does not move the other. */
+/* Personnel Record View: only the name list has its own scrollbar.
+   The opened personnel record remains full-height and scrolls normally
+   with the page. */
 @media(min-width:901px) {
     .registry-layout {
-        height: calc(100vh - 285px);
-        min-height: 520px;
-        align-items: stretch;
-        overflow: hidden;
+        align-items: start;
     }
 
     .registry-layout > .personnel-list {
-        height: 100%;
-        min-height: 0;
+        max-height: calc(100vh - 285px);
+        min-height: 520px;
         overflow-y: auto;
         overflow-x: hidden;
         padding-right: 6px;
@@ -379,11 +377,8 @@ main {
     }
 
     .registry-layout > .passport {
-        height: 100%;
-        min-height: 0;
-        overflow-y: auto;
-        overflow-x: hidden;
-        overscroll-behavior: contain;
+        height: auto;
+        overflow: visible;
     }
 }
 
