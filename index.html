@@ -359,6 +359,34 @@ main {
     align-content: start;
 }
 
+/* Personnel Record View: keep the name list and opened profile on
+   separate vertical scroll areas so scrolling one does not move the other. */
+@media(min-width:901px) {
+    .registry-layout {
+        height: calc(100vh - 285px);
+        min-height: 520px;
+        align-items: stretch;
+        overflow: hidden;
+    }
+
+    .registry-layout > .personnel-list {
+        height: 100%;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-right: 6px;
+        overscroll-behavior: contain;
+    }
+
+    .registry-layout > .passport {
+        height: 100%;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        overscroll-behavior: contain;
+    }
+}
+
 .person-card {
     border: 1px solid var(--border);
     background: var(--light-cream);
