@@ -873,6 +873,8 @@ main {
 .personnel-sheet-table td.sheet-col-username{min-width:175px;width:175px;max-width:175px}
 .personnel-sheet-table th.sheet-col-id,
 .personnel-sheet-table td.sheet-col-id{min-width:120px;width:120px;max-width:120px}
+.personnel-sheet-table th.sheet-col-permission,
+.personnel-sheet-table td.sheet-col-permission{min-width:210px;width:210px;max-width:210px;text-align:center;font-size:20px;font-weight:bold}
 .personnel-sheet-table th.sheet-col-rank,
 .personnel-sheet-table td.sheet-col-rank{min-width:165px;width:165px;max-width:165px}
 .personnel-sheet-table th.sheet-col-title,
@@ -1799,6 +1801,7 @@ id="personnelSearchCategory"
 onchange="updatePersonnelSearchControls()">
 <option value="username">Roblox Username</option>
 <option value="rank">Rank</option>
+<option value="permissionHolder">Permission Holder in Roblox Group</option>
 <option value="medal">Medal</option>
 <option value="title">Title</option>
 <option value="unit">Regiment / Unit</option>
@@ -3428,6 +3431,10 @@ function getPersonnelSearchOptions(category) {
         );
     }
 
+    if(category === "permissionHolder") {
+        return ["Current Permission Holders"];
+    }
+
     if(category === "rank") {
         const existing = existingValues(
             personnel
@@ -3519,6 +3526,7 @@ function updatePersonnelSearchControls() {
     const labels = {
         username: "All Roblox Usernames",
         rank: "All Ranks",
+        permissionHolder: "Current Permission Holders",
         medal: "All Medals",
         title: "All Titles",
         unit: "All Regiments / Units"
@@ -3566,6 +3574,10 @@ function updatePersonnelSearchControls() {
 
     const usernameMode =
     category === "username";
+
+    if(category === "permissionHolder") {
+        valueSelect.value = "Current Permission Holders";
+    }
 
 
     searchBox.disabled =
@@ -3655,6 +3667,7 @@ function renderPersonnelSpreadsheet(rows) {
         <tr>
             <th class="sheet-col-username">Roblox Username</th>
             <th class="sheet-col-id">Roblox ID</th>
+            <th class="sheet-col-permission">Permission Holder in Roblox Group</th>
             <th class="sheet-col-rank">Rank</th>
             <th class="sheet-col-title">Title</th>
             <th class="sheet-col-unit">Regiment / Unit</th>
@@ -3669,7 +3682,7 @@ function renderPersonnelSpreadsheet(rows) {
     if(!rows.length) {
         body.innerHTML = `
             <tr>
-                <td colspan="${7 + medalColumns.length}" class="empty-message">
+                <td colspan="${8 + medalColumns.length}" class="empty-message">
                     No personnel records match this search.
                 </td>
             </tr>`;
@@ -3700,6 +3713,7 @@ function renderPersonnelSpreadsheet(rows) {
         <tr>
             <td class="sheet-col-username">@${escapeHTML(person.username || "—")}</td>
             <td class="sheet-col-id">${escapeHTML(String(person.robloxId || person.robloxID || "—"))}</td>
+            <td class="sheet-col-permission" aria-label="${isRobloxGroupPermissionHolder(person) ? "Enabled" : "Disabled"}">${isRobloxGroupPermissionHolder(person) ? "✓" : "✕"}</td>
             <td class="sheet-col-rank">${escapeHTML(person.rank || "None")}</td>
             <td class="sheet-col-title">${escapeHTML(person.title || "None")}</td>
             <td class="sheet-col-unit">${escapeHTML(person.unit || "Unassigned")}</td>
@@ -3781,6 +3795,10 @@ function renderPersonnel() {
             return true;
         }
 
+
+        if(category === "permissionHolder") {
+            return isRobloxGroupPermissionHolder(person);
+        }
 
         if(!selectedValue) {
             return true;
@@ -5935,6 +5953,15 @@ function serviceHistorySortValue(dateText) {
 
                     </div>
 
+                    <div class="service-field-box">
+                        <small>Permission Holder in Roblox Group</small>
+                        <strong>${isRobloxGroupPermissionHolder(person) ? "✓ Enabled" : "✕ Disabled"}</strong>
+                        ${isAbovePraporschik(person.rank) && userRole === "staff" ? `
+                        <button class="secondary-btn service-save-id" type="button"
+                            onclick="toggleRobloxGroupPermission('${escapeJS(person.id)}')">
+                            ${isRobloxGroupPermissionHolder(person) ? "Disable Permission" : "Enable Permission"}
+                        </button>` : ""}
+                    </div>
                 </div>
 
             </div>
@@ -6923,6 +6950,29 @@ function renderRanks() {
 /* =========================================================
    QUICK PERSONNEL RECORDER
    ========================================================= */
+
+function isAbovePraporschik(rank) {
+    const current = QUICK_RANKS.findIndex(value =>
+        String(value).toLowerCase() === String(rank || "").toLowerCase());
+    const threshold = QUICK_RANKS.indexOf("Praporschik");
+    return current >= 0 && current < threshold;
+}
+
+function isRobloxGroupPermissionHolder(person) {
+    return !!person && isAbovePraporschik(person.rank) && person.robloxGroupPermission === true;
+}
+
+function toggleRobloxGroupPermission(personID) {
+    if(userRole !== "staff") return;
+    const person = personnel.find(item => String(item.id) === String(personID));
+    if(!person || !isAbovePraporschik(person.rank)) return;
+    person.robloxGroupPermission = !isRobloxGroupPermissionHolder(person);
+    addAudit((person.robloxGroupPermission ? "Enabled" : "Disabled") +
+        " Roblox Group Permission for " + person.username);
+    saveData();
+    openPassport(personID);
+    updatePersonnelSearchControls();
+}
 
 const QUICK_RANKS = [
     "Nachal'nik General'novo Shtaba",
