@@ -3693,16 +3693,10 @@ function renderPersonnelSpreadsheet(rows) {
        If a person does not currently possess that medal, the corresponding
        cell is intentionally left blank. Nothing shifts left or right.
     */
-    const medalSelect = document.getElementById("quickActionValue");
-    let medalColumns = [];
-
-    if(medalSelect) {
-        medalColumns = Array.from(medalSelect.options)
-            .map(option => String(option.value || ""))
-            .filter(value => value.startsWith("medal::"))
-            .map(value => value.slice("medal::".length).trim())
-            .filter(Boolean);
-    }
+    /* Use the Staff Desk medal catalogue as the single source of truth.
+       This guarantees every medal is shown, in exactly the Staff Desk order,
+       including for guests and when no personnel currently holds a medal. */
+    const medalColumns = [...QUICK_MEDALS];
 
     /* Include any currently-held medal not present in the Staff Desk catalogue. */
     rows.forEach(person => {
