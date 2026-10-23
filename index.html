@@ -1576,6 +1576,15 @@ th {
 .unit-title-editor-grid label{margin-top:0}
 @media(max-width:900px){.unit-title-editor-grid{grid-template-columns:1fr}}
 
+
+/* Roblox Group permission: compact inline status and staff action. */
+.roblox-permission-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.roblox-permission-controls strong{display:inline-block;font-size:21px;line-height:1.3}
+.roblox-permission-controls .service-save-id{margin:0;padding:7px 11px;font-family:Arial,sans-serif;font-size:12px;font-weight:bold}
+/* Keep the personnel list independently scrollable; distinguish the open record. */
+#personnelList .person-card.selected{background:#e4d6bd;border:2px solid #a98743;box-shadow:inset 4px 0 0 #761c25,0 4px 12px rgba(0,0,0,.10)}
+#personnelList .person-card.selected:hover{background:#dfceb0}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -3880,7 +3889,9 @@ function renderPersonnel() {
         return `
 
         <button
-        class="person-card"
+        class="person-card ${String(selectedPerson) === String(person.id) ? 'selected' : ''}"
+        data-person-id="${escapeHTML(String(person.id))}"
+        aria-pressed="${String(selectedPerson) === String(person.id)}"
         onclick="openPassport('${escapeJS(person.id)}')">
 
             <div class="person-name">
@@ -5298,6 +5309,11 @@ function openPassport(personID) {
     selectedPerson =
     personID;
 
+    document.querySelectorAll("#personnelList .person-card").forEach(card => {
+        const isSelected = card.dataset.personId === String(personID);
+        card.classList.toggle("selected", isSelected);
+        card.setAttribute("aria-pressed", String(isSelected));
+    });
 
     const person =
     personnel.find(
@@ -5955,12 +5971,14 @@ function serviceHistorySortValue(dateText) {
 
                     <div class="service-field-box">
                         <small>Permission Holder in Roblox Group</small>
-                        <strong>${isRobloxGroupPermissionHolder(person) ? "✓ Enabled" : "✕ Disabled"}</strong>
-                        ${isAbovePraporschik(person.rank) && userRole === "staff" ? `
-                        <button class="secondary-btn service-save-id" type="button"
-                            onclick="toggleRobloxGroupPermission('${escapeJS(person.id)}')">
-                            ${isRobloxGroupPermissionHolder(person) ? "Disable Permission" : "Enable Permission"}
-                        </button>` : ""}
+                        <div class="roblox-permission-controls">
+                            <strong aria-label="${isRobloxGroupPermissionHolder(person) ? "Enabled" : "Disabled"}">${isRobloxGroupPermissionHolder(person) ? "✓" : "✕"}</strong>
+                            ${isAbovePraporschik(person.rank) && userRole === "staff" ? `
+                            <button class="secondary-btn service-save-id" type="button"
+                                onclick="toggleRobloxGroupPermission('${escapeJS(person.id)}')">
+                                ${isRobloxGroupPermissionHolder(person) ? "Disable Permission" : "Enable Permission"}
+                            </button>` : ""}
+                        </div>
                     </div>
                 </div>
 
@@ -6955,7 +6973,7 @@ function isAbovePraporschik(rank) {
     const current = QUICK_RANKS.findIndex(value =>
         String(value).toLowerCase() === String(rank || "").toLowerCase());
     const threshold = QUICK_RANKS.indexOf("Praporschik");
-    return current >= 0 && current < threshold;
+    return current >= 0 && threshold >= 0 && current <= threshold;
 }
 
 function isRobloxGroupPermissionHolder(person) {
