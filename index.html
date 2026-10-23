@@ -1585,6 +1585,57 @@ th {
 #personnelList .person-card.selected{background:#e4d6bd;border:2px solid #a98743;box-shadow:inset 4px 0 0 #761c25,0 4px 12px rgba(0,0,0,.10)}
 #personnelList .person-card.selected:hover{background:#dfceb0}
 
+
+/* Spreadsheet-only scrolling: keep the surrounding page stationary while
+   the matrix scrolls vertically or horizontally. Pin usernames in view. */
+#personnelSpreadsheet.active {
+    min-width: 0;
+}
+#personnelSpreadsheet.active > .table-container {
+    width: 100%;
+    max-width: 100%;
+    height: calc(100dvh - 275px);
+    min-height: 320px;
+    max-height: calc(100dvh - 275px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    position: relative;
+    isolation: isolate;
+}
+#personnelSpreadsheet .personnel-sheet-table th.sheet-col-permission {
+    font-size: 12px;
+    font-weight: bold;
+}
+#personnelSpreadsheet .personnel-sheet-table td.sheet-col-permission {
+    font-size: 20px;
+    font-weight: bold;
+}
+#personnelSpreadsheet .personnel-sheet-table th.sheet-col-username,
+#personnelSpreadsheet .personnel-sheet-table td.sheet-col-username {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: var(--light-cream);
+    box-shadow: 2px 0 0 var(--border);
+}
+#personnelSpreadsheet .personnel-sheet-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    background: #eaddc5;
+}
+#personnelSpreadsheet .personnel-sheet-table thead th.sheet-col-username {
+    z-index: 5;
+    background: #eaddc5;
+}
+@media (max-height: 550px) {
+    #personnelSpreadsheet.active > .table-container {
+        height: 65dvh;
+        min-height: 200px;
+        max-height: 65dvh;
+    }
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
