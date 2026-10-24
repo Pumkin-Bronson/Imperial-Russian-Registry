@@ -1636,6 +1636,23 @@ th {
     }
 }
 
+/* Spreadsheet selection: shade the selected cell and its row/column guides. */
+#personnelSpreadsheet .personnel-sheet-table .sheet-crosshair-guide {
+    background: #d8c6a8;
+}
+#personnelSpreadsheet .personnel-sheet-table .sheet-crosshair-focus {
+    background: #c3a77e;
+    box-shadow: inset 0 0 0 2px var(--red);
+}
+#personnelSpreadsheet .personnel-sheet-table thead th.sheet-crosshair-guide,
+#personnelSpreadsheet .personnel-sheet-table tbody td.sheet-col-username.sheet-crosshair-guide {
+    background: #cbb48e;
+}
+#personnelSpreadsheet .personnel-sheet-table thead th.sheet-crosshair-focus,
+#personnelSpreadsheet .personnel-sheet-table tbody td.sheet-col-username.sheet-crosshair-focus {
+    background: #b99a6b;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -3682,6 +3699,37 @@ function openPersonnelFromSpreadsheet(personID) {
     openPassport(personID);
 }
 
+
+/* Spreadsheet crosshair selection; uses delegation so re-rendered rows work. */
+function selectPersonnelSpreadsheetCell(cell) {
+    const table = document.querySelector("#personnelSpreadsheet .personnel-sheet-table");
+    if(!table || !cell || !table.contains(cell)) return;
+    table.querySelectorAll(".sheet-crosshair-guide, .sheet-crosshair-focus").forEach(el => {
+        el.classList.remove("sheet-crosshair-guide", "sheet-crosshair-focus");
+    });
+    const row = cell.closest("tbody tr");
+    if(!row) return;
+    const column = cell.cellIndex;
+    const rowCells = Array.from(row.cells);
+    const header = table.tHead?.rows[0]?.cells[column];
+    // Horizontal guide: from the username through the selected cell.
+    rowCells.slice(0, column + 1).forEach(el => el.classList.add("sheet-crosshair-guide"));
+    // Vertical guide: from the column header through the selected row.
+    if(header) header.classList.add("sheet-crosshair-guide");
+    Array.from(table.tBodies[0].rows).forEach(tr => {
+        if(tr === row) return;
+        if(tr.rowIndex < row.rowIndex && tr.cells[column]) {
+            tr.cells[column].classList.add("sheet-crosshair-guide");
+        }
+    });
+    cell.classList.add("sheet-crosshair-focus");
+}
+
+document.getElementById("personnelSpreadsheetBody")?.addEventListener("click", event => {
+    const cell = event.target.closest("td");
+    if(cell) selectPersonnelSpreadsheetCell(cell);
+});
+
 function renderPersonnelSpreadsheet(rows) {
     const head = document.getElementById("personnelSpreadsheetHead");
     const body = document.getElementById("personnelSpreadsheetBody");
@@ -3901,6 +3949,16 @@ function renderPersonnel() {
 
         return true;
 
+    }).sort((a, b) => {
+        // QUICK_RANKS is ordered from highest to lowest in Staff Desk.
+        const rankPosition = person => {
+            const index = QUICK_RANKS.findIndex(rank =>
+                normalizeRobloxUsername(rank) === normalizeRobloxUsername(person.rank || "")
+            );
+            return index === -1 ? QUICK_RANKS.length : index;
+        };
+        return rankPosition(a) - rankPosition(b) ||
+            String(a.username || "").localeCompare(String(b.username || ""), undefined, { sensitivity: "base" });
     });
 
 
