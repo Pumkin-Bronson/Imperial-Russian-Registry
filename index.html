@@ -1975,6 +1975,11 @@ Regiment / Unit Title
 </label>
 
 <label>
+Unit Type Selection
+<select id="unitRosterType"><option value="General Staff">General Staff</option><option value="Guard">Guard</option><option value="Guard Cavalry">Guard Cavalry</option><option value="Grenadier">Grenadier</option><option value="Line Infantry">Line Infantry</option><option value="Light Infantry">Light Infantry</option><option value="Light Cavalry">Light Cavalry</option><option value="Lancer">Lancer</option><option value="Heavy Cavalry">Heavy Cavalry</option></select>
+</label>
+
+<label>
 Commander of the Unit
 <input
     id="unitRosterCommander"
@@ -2047,6 +2052,15 @@ Enter
       <input id="unitTitleEditorInput" type="text" maxlength="200" placeholder="Enter new regiment / unit title" onkeydown="if(event.key==='Enter'){event.preventDefault();submitUnitTitleEditor();}">
     </label>
     <button class="primary-btn unit-enter-btn" type="button" onclick="submitUnitTitleEditor()">Enter</button>
+  </div>
+  <div class="unit-info-date-section">
+    <div class="unit-info-date-grid">
+      <label>Unit Type Selection
+        <select id="unitInfoTypeSelect"><option value="General Staff">General Staff</option><option value="Guard">Guard</option><option value="Guard Cavalry">Guard Cavalry</option><option value="Grenadier">Grenadier</option><option value="Line Infantry">Line Infantry</option><option value="Light Infantry">Light Infantry</option><option value="Light Cavalry">Light Cavalry</option><option value="Lancer">Lancer</option><option value="Heavy Cavalry">Heavy Cavalry</option></select>
+      </label>
+      <button class="primary-btn unit-enter-btn" type="button" onclick="submitUnitInfoTypeEditor()">Save Unit Type</button>
+    </div>
+    <div id="unitInfoTypeMessage" class="quick-feedback" aria-live="polite"></div>
   </div>
   <div class="unit-info-date-section">
     <div class="unit-info-date-heading">
@@ -2794,6 +2808,11 @@ let auditLog =
 (JSON.parse(localStorage.getItem("vamAudit")) || []).slice(-40);
 localStorage.setItem("vamAudit", JSON.stringify(auditLog));
 
+
+const UNIT_TYPES = ["General Staff", "Guard", "Guard Cavalry", "Grenadier", "Line Infantry", "Light Infantry", "Light Cavalry", "Lancer", "Heavy Cavalry"];
+function unitTypeRank(unit) { const i = UNIT_TYPES.indexOf(unit && unit.unitType); return i < 0 ? UNIT_TYPES.length : i; }
+function compareUnitsByType(a,b) { return unitTypeRank(a) - unitTypeRank(b) || String(a.title || "").localeCompare(String(b.title || "")); }
+function unitTypeOptions(selected) { return UNIT_TYPES.map(type => `<option value="${type}" ${type === selected ? "selected" : ""}>${type}</option>`).join(""); }
 
 let unitRoster =
 JSON.parse(localStorage.getItem("vamUnitRoster"))
@@ -3563,7 +3582,7 @@ function getPersonnelSearchOptions(category) {
     if(category === "unit") {
         /* Preserve Regiment / Unit Roster default order, including Archived. */
         return uniqueInOrder(
-            unitRoster.map(unit => unit.title)
+            unitRoster.slice().sort(compareUnitsByType).map(unit => unit.title)
         );
     }
 
@@ -6370,6 +6389,8 @@ function createUnitRosterRecord() {
         commander:
         commander,
 
+        unitType: document.getElementById("unitRosterType").value,
+
         date:
         date,
 
@@ -6409,6 +6430,8 @@ function createUnitRosterRecord() {
     document
     .getElementById("unitRosterCommander")
     .value = "";
+
+    document.getElementById("unitRosterType").value = UNIT_TYPES[0];
 
     clearSpecialRecordDate("unitRosterDate");
 
@@ -6474,6 +6497,21 @@ function toggleUnitActionMenu(unitID) {
 
 }
 
+
+function toggleUnitTypeAction(unitID) {
+    const area = document.getElementById("unitTypeAction-" + unitID);
+    if(area) area.classList.toggle("hidden");
+}
+function saveUnitTypeAction(unitID) {
+    if(userRole !== "staff") return;
+    const unit = unitRoster.find(item => String(item.id) === String(unitID));
+    const select = document.getElementById("unitTypeChoice-" + unitID);
+    if(!unit || !select || !UNIT_TYPES.includes(select.value)) return;
+    const old = unit.unitType || "Unspecified";
+    unit.unitType = select.value;
+    addAudit("Changed unit type of " + unit.title + " from " + old + " to " + unit.unitType);
+    saveData(); renderEverything();
+}
 
 function setUnitRosterStatus(unitID, newStatus) {
 
@@ -6825,12 +6863,7 @@ function renderUnitRoster() {
     .filter(unit =>
         unit.status !== "Archived"
     )
-    .sort((a,b) =>
-        String(a.title || "")
-        .localeCompare(
-            String(b.title || "")
-        )
-    );
+    .sort(compareUnitsByType);
 
 
     const archivedUnits =
@@ -6838,12 +6871,7 @@ function renderUnitRoster() {
     .filter(unit =>
         unit.status === "Archived"
     )
-    .sort((a,b) =>
-        String(a.title || "")
-        .localeCompare(
-            String(b.title || "")
-        )
-    );
+    .sort(compareUnitsByType);
 
 
     function buildUnitRows(units) {
@@ -6884,6 +6912,8 @@ function renderUnitRoster() {
                 <td>
                     <strong>${memberCount}</strong>
                 </td>
+
+                <td>${escapeHTML(unit.unitType || "—")}</td>
 
                 <td>
                     <span class="${
@@ -6940,6 +6970,12 @@ function renderUnitRoster() {
                                 Rename
                                 </button>
 
+                                <button type="button" onclick="toggleUnitTypeAction('${escapeJS(unit.id)}')">Unit Type</button>
+                                <div id="unitTypeAction-${escapeHTML(unit.id)}" class="hidden">
+                                  <select id="unitTypeChoice-${escapeHTML(unit.id)}">${unitTypeOptions(unit.unitType)}</select>
+                                  <button type="button" onclick="saveUnitTypeAction('${escapeJS(unit.id)}')">Save Unit Type</button>
+                                </div>
+
                             </div>
 
                         </div>
@@ -6994,6 +7030,8 @@ function renderUnitRoster() {
                         <th>Record Date</th>
 
                         <th>Total Members</th>
+
+                        <th>Unit Type</th>
 
                         <th>Status</th>
 
@@ -7445,12 +7483,7 @@ function populateQuickUnitAssignment() {
     .filter(unit =>
         unit.status !== "Archived"
     )
-    .sort((a,b) =>
-        String(a.title || "")
-        .localeCompare(
-            String(b.title || "")
-        )
-    );
+    .sort(compareUnitsByType);
 
 
     select.innerHTML =
@@ -8267,7 +8300,7 @@ function submitCampaignRecord() {
 function unitOptionLabel(unit){ return (unit.title||"Unnamed Unit") + " — Commander: " + (unit.commander||"Unassigned") + (unit.status==="Archived" ? " — Archived" : " — Active"); }
 function renderBulkUnitTransferRegistry(){
  const source=document.getElementById("bulkUnitTransferSource"), target=document.getElementById("bulkUnitTransferTarget"); if(!source||!target)return;
- const ps=source.value, pt=target.value; const units=unitRoster.slice();
+ const ps=source.value, pt=target.value; const units=unitRoster.slice().sort(compareUnitsByType);
  const opts=units.map(u=>`<option value="${escapeHTML(u.id)}">${escapeHTML(unitOptionLabel(u))}</option>`).join("");
  source.innerHTML='<option value="">Select source regiment / unit...</option>'+opts; target.innerHTML='<option value="">Select destination regiment / unit...</option>'+opts;
  if(units.some(u=>u.id===ps))source.value=ps;if(units.some(u=>u.id===pt))target.value=pt; updateBulkUnitTransferRegistry();
@@ -8311,7 +8344,7 @@ function renderUnitTransferRegistry() {
     const targetSelect=document.getElementById("unitTransferTarget");
     if(!personInput || !targetSelect) return;
     const previousTarget=targetSelect.value;
-    const activeUnits=unitRoster.filter(unit=>unit.status!=="Archived").slice().sort((a,b)=>String(a.title||"").localeCompare(String(b.title||"")));
+    const activeUnits=unitRoster.filter(unit=>unit.status!=="Archived").slice().sort(compareUnitsByType);
     targetSelect.innerHTML='<option value="">Select active regiment / unit...</option>'+activeUnits.map(unit=>`<option value="${escapeHTML(unit.id)}">${escapeHTML(unit.title)} — Commander: ${escapeHTML(unit.commander || "Unassigned")}</option>`).join("");
     if(previousTarget && activeUnits.some(unit=>String(unit.id)===String(previousTarget))) targetSelect.value=previousTarget;
     updateUnitTransferRegistry();
@@ -10447,9 +10480,7 @@ function renderUnitTitleEditor() {
     const select = document.getElementById("unitTitleEditorSelect");
     if(!select) return;
     const previous = select.value;
-    const units = unitRoster.slice().sort((a,b) =>
-        String(a.title || "").localeCompare(String(b.title || ""))
-    );
+    const units = unitRoster.slice().sort(compareUnitsByType);
     select.innerHTML = '<option value="">Select regiment / unit...</option>' +
         units.map(unit => `<option value="${escapeHTML(String(unit.id))}">${escapeHTML(String(unit.title || "Unnamed Unit"))} — Commander: ${escapeHTML(String(unit.commander || "Unassigned"))} — ${unit.status === "Archived" ? "Archived" : "Active"}</option>`).join("");
     if(units.some(unit => String(unit.id) === previous)) select.value = previous;
@@ -10466,6 +10497,32 @@ function updateUnitTitleEditorSelection() {
     message.className = "quick-feedback";
     resetUnitInfoDateEditor();
     resetUnitInfoCommanderEditor();
+    const typeSelect = document.getElementById("unitInfoTypeSelect");
+    if(typeSelect) typeSelect.value = unit && UNIT_TYPES.includes(unit.unitType) ? unit.unitType : UNIT_TYPES[0];
+    const typeMessage = document.getElementById("unitInfoTypeMessage");
+    if(typeMessage) typeMessage.textContent = "";
+}
+
+function submitUnitInfoTypeEditor() {
+    if(userRole !== "staff" || staffRole !== "admin") return;
+    const select = document.getElementById("unitTitleEditorSelect");
+    const typeSelect = document.getElementById("unitInfoTypeSelect");
+    const message = document.getElementById("unitInfoTypeMessage");
+    const unit = unitRoster.find(item => String(item.id) === select.value);
+    if(!unit || !UNIT_TYPES.includes(typeSelect.value)) {
+        message.className = "quick-feedback warning";
+        message.textContent = "Select a regiment / unit and its type.";
+        return;
+    }
+    const oldType = unit.unitType;
+    unit.unitType = typeSelect.value;
+    addAudit("Changed unit type of " + unit.title + " to " + unit.unitType);
+    saveData(); renderEverything();
+    document.getElementById("unitTitleEditorSelect").value = String(unit.id);
+    updateUnitTitleEditorSelection();
+    const updated = document.getElementById("unitInfoTypeMessage");
+    updated.className = "quick-feedback success";
+    updated.textContent = "Unit type saved: " + unit.unitType;
 }
 
 function submitUnitTitleEditor() {
