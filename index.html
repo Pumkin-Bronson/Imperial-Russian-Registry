@@ -6996,14 +6996,7 @@ function renderUnitRoster() {
 
     function buildUnitSection(title, description, units) {
 
-        const sectionMemberCount =
-        units.reduce((total, unit) => {
-            const count = personnel.filter(person =>
-                normalizeRobloxUsername(person.unit || "") ===
-                normalizeRobloxUsername(unit.title || "")
-            ).length;
-            return total + count;
-        }, 0);
+        const sectionRegimentCount = units.length;
 
         const content =
         units.length === 0
@@ -7068,7 +7061,7 @@ function renderUnitRoster() {
                 <div class="person-meta">
                 ${escapeHTML(description)}
                 <br>
-                <strong>Total Members: ${sectionMemberCount}</strong>
+                <strong>Total Regiment(s) : ${sectionRegimentCount}</strong>
                 </div>
 
             </div>
