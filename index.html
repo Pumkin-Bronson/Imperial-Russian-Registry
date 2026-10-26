@@ -1976,7 +1976,7 @@ Regiment / Unit Title
 
 <label>
 Unit Type Selection
-<select id="unitRosterType"><option value="General Staff">General Staff</option><option value="Guard">Guard</option><option value="Guard Cavalry">Guard Cavalry</option><option value="Grenadier">Grenadier</option><option value="Line Infantry">Line Infantry</option><option value="Light Infantry">Light Infantry</option><option value="Light Cavalry">Light Cavalry</option><option value="Lancer">Lancer</option><option value="Heavy Cavalry">Heavy Cavalry</option></select>
+<select id="unitRosterType"><option value="Archive">Archive</option><option value="General Staff">General Staff</option><option value="Guard">Guard</option><option value="Guard Cavalry">Guard Cavalry</option><option value="Grenadier">Grenadier</option><option value="Line Infantry">Line Infantry</option><option value="Light Infantry">Light Infantry</option><option value="Light Cavalry">Light Cavalry</option><option value="Lancer">Lancer</option><option value="Heavy Cavalry">Heavy Cavalry</option></select>
 </label>
 
 <label>
@@ -2056,7 +2056,7 @@ Enter
   <div class="unit-info-date-section">
     <div class="unit-info-date-grid">
       <label>Unit Type Selection
-        <select id="unitInfoTypeSelect"><option value="General Staff">General Staff</option><option value="Guard">Guard</option><option value="Guard Cavalry">Guard Cavalry</option><option value="Grenadier">Grenadier</option><option value="Line Infantry">Line Infantry</option><option value="Light Infantry">Light Infantry</option><option value="Light Cavalry">Light Cavalry</option><option value="Lancer">Lancer</option><option value="Heavy Cavalry">Heavy Cavalry</option></select>
+        <select id="unitInfoTypeSelect"><option value="Archive">Archive</option><option value="General Staff">General Staff</option><option value="Guard">Guard</option><option value="Guard Cavalry">Guard Cavalry</option><option value="Grenadier">Grenadier</option><option value="Line Infantry">Line Infantry</option><option value="Light Infantry">Light Infantry</option><option value="Light Cavalry">Light Cavalry</option><option value="Lancer">Lancer</option><option value="Heavy Cavalry">Heavy Cavalry</option></select>
       </label>
       <button class="primary-btn unit-enter-btn" type="button" onclick="submitUnitInfoTypeEditor()">Save Unit Type</button>
     </div>
@@ -2809,7 +2809,7 @@ let auditLog =
 localStorage.setItem("vamAudit", JSON.stringify(auditLog));
 
 
-const UNIT_TYPES = ["General Staff", "Guard", "Guard Cavalry", "Grenadier", "Line Infantry", "Light Infantry", "Light Cavalry", "Lancer", "Heavy Cavalry"];
+const UNIT_TYPES = ["Archive", "General Staff", "Guard", "Guard Cavalry", "Grenadier", "Line Infantry", "Light Infantry", "Light Cavalry", "Lancer", "Heavy Cavalry"];
 function unitTypeRank(unit) { const i = UNIT_TYPES.indexOf(unit && unit.unitType); return i < 0 ? UNIT_TYPES.length : i; }
 function compareUnitsByType(a,b) { return unitTypeRank(a) - unitTypeRank(b) || String(a.title || "").localeCompare(String(b.title || "")); }
 function unitTypeOptions(selected) { return UNIT_TYPES.map(type => `<option value="${type}" ${type === selected ? "selected" : ""}>${type}</option>`).join(""); }
@@ -4120,7 +4120,7 @@ function getLinkedPersonnelStatus(person) {
         if(linkedUnit) {
 
             return linkedUnit.status === "Archived"
-            ? "Archived"
+            ? "Inactive"
             : "Active";
 
         }
