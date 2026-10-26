@@ -6881,7 +6881,7 @@ function renderUnitRoster() {
 
             const status =
             unit.status === "Archived"
-            ? "Archived"
+            ? "Inactive"
             : "Active";
 
             const memberCount =
@@ -7889,6 +7889,33 @@ function submitQuickRecord() {
 
     }
 
+    // Validate the linked campaign before recording either action.
+    const linkedCampaign = isCampaignUsernameSyncEnabled()
+        ? document.getElementById("campaignRecordName").value.trim()
+        : "";
+    const linkedCampaignDate = linkedCampaign
+        ? getRecordDateFromInput("campaignRecordDate")
+        : "";
+    if(isCampaignUsernameSyncEnabled()) {
+        if(!linkedCampaign) {
+            warningBox.textContent = "Please enter a campaign name in Campaign Record before submitting the linked actions.";
+            warningBox.classList.add("warning");
+            return;
+        }
+        const existingCampaignPerson = findExactPersonnelByUsername(username);
+        if(existingCampaignPerson) {
+            ensureServiceCollections(existingCampaignPerson);
+            if(existingCampaignPerson.campaignHistory.some(entry =>
+                !existingCampaignPerson.hiddenServiceHistoryIds?.includes(entry._serviceHistoryId)
+                && normalizeRobloxUsername(entry.campaign || entry.name || "") === normalizeRobloxUsername(linkedCampaign)
+            )) {
+                warningBox.textContent = "User has already recorded participation in this campaign.";
+                warningBox.classList.add("warning");
+                return;
+            }
+        }
+    }
+
     let person = findExactPersonnelByUsername(username);
     let createdNew = false;
 
@@ -8028,12 +8055,29 @@ function submitQuickRecord() {
         )
     );
 
+    if(isCampaignUsernameSyncEnabled()) {
+        person.campaignHistory.push({
+            campaign: linkedCampaign,
+            date: linkedCampaignDate,
+            reason: ""
+        });
+        addAudit("Recorded campaign participation " + linkedCampaign + " for " + person.username + " on " + linkedCampaignDate);
+    }
+
     saveData();
 
     selectedPerson = person.id;
 
     renderEverything();
     openPassport(person.id);
+    if(isCampaignUsernameSyncEnabled()) {
+        document.getElementById("campaignRecordName").value = "";
+        clearSpecialRecordDate("campaignRecordDate");
+        document.getElementById("campaignRecordDate").value = "";
+        const campaignMessage = document.getElementById("campaignRecordMessage");
+        campaignMessage.className = "quick-feedback success";
+        campaignMessage.textContent = "Campaign participation recorded with the Personnel Action Recorder.";
+    }
 
     warningBox.textContent = createdNew
         ? "New profile created and action recorded successfully."
@@ -8191,6 +8235,12 @@ function submitCampaignRecord() {
     if(userRole !== "staff") {
         return;
     }
+    if(isCampaignUsernameSyncEnabled()) {
+        const message = document.getElementById("campaignRecordMessage");
+        message.className = "quick-feedback warning";
+        message.textContent = "Use Enter in Personnel Action Recorder to submit both linked records.";
+        return;
+    }
 
     const campaignUsername =
     normalizeRobloxUsername(document.getElementById("campaignRecordPerson").value);
@@ -8297,11 +8347,18 @@ function submitCampaignRecord() {
 }
 
 
-function unitOptionLabel(unit){ return (unit.title||"Unnamed Unit") + " — Commander: " + (unit.commander||"Unassigned") + (unit.status==="Archived" ? " — Archived" : " — Active"); }
+function unitOptionLabel(unit){ return (unit.title||"Unnamed Unit") + " — Commander: " + (unit.commander||"Unassigned") + (unit.status==="Archived" ? " — Inactive" : " — Active"); }
+function groupedUnitOptions(units){
+    const active=units.filter(unit=>unit.status!=="Archived");
+    const archived=units.filter(unit=>unit.status==="Archived");
+    const options=items=>items.map(unit=>`<option value="${escapeHTML(String(unit.id))}">${escapeHTML(unitOptionLabel(unit))}</option>`).join("");
+    return '<optgroup label="Active Regiments">'+options(active)+'</optgroup>'+
+           '<optgroup label="Archived Regiments">'+options(archived)+'</optgroup>';
+}
 function renderBulkUnitTransferRegistry(){
  const source=document.getElementById("bulkUnitTransferSource"), target=document.getElementById("bulkUnitTransferTarget"); if(!source||!target)return;
  const ps=source.value, pt=target.value; const units=unitRoster.slice().sort(compareUnitsByType);
- const opts=units.map(u=>`<option value="${escapeHTML(u.id)}">${escapeHTML(unitOptionLabel(u))}</option>`).join("");
+ const opts=groupedUnitOptions(units);
  source.innerHTML='<option value="">Select source regiment / unit...</option>'+opts; target.innerHTML='<option value="">Select destination regiment / unit...</option>'+opts;
  if(units.some(u=>u.id===ps))source.value=ps;if(units.some(u=>u.id===pt))target.value=pt; updateBulkUnitTransferRegistry();
 }
@@ -8344,9 +8401,9 @@ function renderUnitTransferRegistry() {
     const targetSelect=document.getElementById("unitTransferTarget");
     if(!personInput || !targetSelect) return;
     const previousTarget=targetSelect.value;
-    const activeUnits=unitRoster.filter(unit=>unit.status!=="Archived").slice().sort(compareUnitsByType);
-    targetSelect.innerHTML='<option value="">Select active regiment / unit...</option>'+activeUnits.map(unit=>`<option value="${escapeHTML(unit.id)}">${escapeHTML(unit.title)} — Commander: ${escapeHTML(unit.commander || "Unassigned")}</option>`).join("");
-    if(previousTarget && activeUnits.some(unit=>String(unit.id)===String(previousTarget))) targetSelect.value=previousTarget;
+    const units=unitRoster.slice().sort(compareUnitsByType);
+    targetSelect.innerHTML='<option value="">Select regiment / unit...</option>'+groupedUnitOptions(units);
+    if(previousTarget && units.some(unit=>String(unit.id)===String(previousTarget))) targetSelect.value=previousTarget;
     updateUnitTransferRegistry();
 }
 
@@ -8405,7 +8462,6 @@ function submitUnitTransfer() {
     }
 
     const destination = unitRoster.find(unit =>
-        unit.status !== "Archived" &&
         (
             String(unit.id) === String(targetValue) ||
             normalizeRobloxUsername(unit.title || "") === normalizeRobloxUsername(targetValue)
@@ -8414,7 +8470,7 @@ function submitUnitTransfer() {
 
     if(!destination){
         message.className="quick-feedback warning";
-        message.textContent="The selected destination is not an active regiment / unit.";
+        message.textContent="The selected destination regiment / unit was not found.";
         return;
     }
 
@@ -10482,7 +10538,7 @@ function renderUnitTitleEditor() {
     const previous = select.value;
     const units = unitRoster.slice().sort(compareUnitsByType);
     select.innerHTML = '<option value="">Select regiment / unit...</option>' +
-        units.map(unit => `<option value="${escapeHTML(String(unit.id))}">${escapeHTML(String(unit.title || "Unnamed Unit"))} — Commander: ${escapeHTML(String(unit.commander || "Unassigned"))} — ${unit.status === "Archived" ? "Archived" : "Active"}</option>`).join("");
+        units.map(unit => `<option value="${escapeHTML(String(unit.id))}">${escapeHTML(String(unit.title || "Unnamed Unit"))} — Commander: ${escapeHTML(String(unit.commander || "Unassigned"))} — ${unit.status === "Archived" ? "Inactive" : "Active"}</option>`).join("");
     if(units.some(unit => String(unit.id) === previous)) select.value = previous;
 }
 
