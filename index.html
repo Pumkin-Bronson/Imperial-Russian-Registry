@@ -1514,6 +1514,14 @@ th {
     }
 }
 
+/* Personnel image export and private editor attribution. */
+.profile-export-btn{position:absolute;top:12px;left:12px;width:35px;height:35px;border:1px solid var(--gold);border-radius:5px;background:#fffdf8;color:var(--red);font-size:20px;z-index:2;padding:0}
+.profile-last-edited{margin-top:24px;text-align:right;color:var(--muted);font:11px Arial,sans-serif}
+.profile-exporting button,.profile-exporting input,.profile-exporting textarea,.profile-exporting select,.profile-exporting .profile-review-status{display:none!important}
+.profile-exporting .service-history-entry{padding-right:0!important}
+.profile-exporting .service-id-fields input{display:block!important;border:0;background:transparent}
+.profile-exporting .profile-export-btn{display:none!important}
+.sheet-export-btn{width:35px;height:33px;padding:0;font-size:19px}
 /* =========================================================
    PUBLIC UPDATES + VERSION
    ========================================================= */
@@ -1655,6 +1663,7 @@ th {
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
 
 <body>
@@ -1904,6 +1913,7 @@ oninput="renderPersonnel()">
 <div class="personnel-view-toolbar">
 <button id="personnelCardsViewBtn" class="personnel-view-btn active" type="button" onclick="setPersonnelViewMode('cards')">Record View</button>
 <button id="personnelSheetViewBtn" class="personnel-view-btn" type="button" onclick="setPersonnelViewMode('sheet')">Spreadsheet View</button>
+<button id="personnelSheetDownloadBtn" class="personnel-view-btn sheet-export-btn hidden" type="button" title="Download full spreadsheet as image" aria-label="Download full spreadsheet as image" onclick="downloadPersonnelSpreadsheetImage()">&#x2913;</button>
 </div>
 
 <div id="personnelCardView" class="personnel-card-view">
@@ -2774,6 +2784,35 @@ let staffRole = null;
 
 let selectedPerson = null;
 
+/* Baseline permits a single attribution update per actually changed profile,
+   even when a Staff Desk action edits several people at once. */
+let personnelEditBaseline = null;
+function snapshotPersonnelEdits(){
+    personnelEditBaseline = new Map(personnel.map(p => [String(p.id), JSON.stringify(p)]));
+}
+function recordPersonnelEditorChanges(){
+    if(userRole !== "staff" || !currentStaffProfile) return;
+    if(!personnelEditBaseline){ snapshotPersonnelEdits(); return; }
+    const account = String(currentStaffProfile.account_name || currentStaffProfile.display_name || staffName || "Staff");
+    const date = new Date().toISOString();
+    personnel.forEach(person => {
+        const old = personnelEditBaseline.get(String(person.id));
+        if(old === undefined || old !== JSON.stringify(person)){
+            person.lastEditedBy = account;
+            person.lastEditedAt = date;
+        }
+    });
+    snapshotPersonnelEdits();
+}
+function personnelEditorStamp(person){
+    if(userRole !== "staff" || !person.lastEditedAt || !person.lastEditedBy) return "";
+    const date = new Date(person.lastEditedAt);
+    if(Number.isNaN(date.getTime())) return "";
+    const formatted = [String(date.getUTCDate()).padStart(2,"0"), String(date.getUTCMonth()+1).padStart(2,"0"),date.getUTCFullYear()].join("/");
+    return `<div class="profile-last-edited">Last Edited by ${escapeHTML(person.lastEditedBy)} at ${formatted}</div>`;
+}
+
+
 
 /* =========================================================
    LOAD DATA
@@ -2857,6 +2896,7 @@ function showPage(pageID) {
    ========================================================= */
 
 async function enterGuest() {
+    snapshotPersonnelEdits();
 
     userRole = "guest";
 
@@ -3278,6 +3318,8 @@ async function openTab(tabName,button) {
 
 function saveData() {
 
+    recordPersonnelEditorChanges();
+
     localStorage.setItem(
         "vamPersonnel",
         JSON.stringify(personnel)
@@ -3457,6 +3499,7 @@ async function loadRegistryCoreDataFromSupabase({allowMigration = false} = {}) {
         }
 
         cacheRegistryCoreData();
+        snapshotPersonnelEdits();
         return true;
 
     } catch(error) {
@@ -3711,6 +3754,7 @@ function setPersonnelViewMode(mode) {
     if(sheet) sheet.classList.toggle("active", personnelViewMode === "sheet");
     if(cardsButton) cardsButton.classList.toggle("active", personnelViewMode === "cards");
     if(sheetButton) sheetButton.classList.toggle("active", personnelViewMode === "sheet");
+    document.getElementById("personnelSheetDownloadBtn")?.classList.toggle("hidden", personnelViewMode !== "sheet");
 }
 
 function openPersonnelFromSpreadsheet(personID) {
@@ -5983,6 +6027,7 @@ function serviceHistorySortValue(dateText) {
 
     panel.innerHTML = `
 
+    <button class="profile-export-btn" type="button" title="Download profile as image" aria-label="Download profile as image" onclick="downloadPersonnelProfileImage('${escapeJS(person.id)}')">&#x2913;</button>
     <div class="service-record-layout">
 
         <section class="service-history-panel">
@@ -6213,10 +6258,11 @@ function serviceHistorySortValue(dateText) {
         </section>
 
     </div>
+    ${personnelEditorStamp(person)}
 
     `;
 
-
+    panel.style.position = "relative";
     refreshRobloxAvatar(personID);
 
 }
@@ -6225,6 +6271,59 @@ function serviceHistorySortValue(dateText) {
 /* =========================================================
    REGIMENT / UNIT ROSTER
    ========================================================= */
+
+/* Full-size PNG exports; clones never modify the live profile or spreadsheet. */
+function safeExportName(value){return String(value || "record").replace(/[^a-z0-9_-]+/gi,"_").slice(0,90);}
+async function exportRegistryElementPNG(element, name, {sheet = false} = {}){
+    if(typeof html2canvas !== "function") { alert("Image export library could not load. Please check your internet connection."); return; }
+    const clone = element.cloneNode(true);
+    clone.removeAttribute("id");
+    clone.querySelectorAll("[id]").forEach(el => el.removeAttribute("id"));
+    clone.classList.add("profile-exporting");
+    clone.style.cssText += ";position:absolute!important;left:0!important;z-index:-1!important;top:0!important;height:auto!important;max-height:none!important;overflow:visible!important;transform:none!important;";
+    if(sheet){
+        clone.querySelectorAll(".sheet-col-record").forEach(el => el.remove());
+        clone.querySelectorAll(".sheet-crosshair-guide,.sheet-crosshair-focus").forEach(el => el.classList.remove("sheet-crosshair-guide","sheet-crosshair-focus"));
+        clone.style.width = "max-content";
+        clone.style.maxWidth = "none";
+        clone.style.minWidth = "0";
+        clone.style.display = "block";
+        clone.querySelectorAll("th,td").forEach(el => {el.style.position="static";el.style.boxShadow="none";});
+    } else {
+        clone.style.width = Math.max(900,element.getBoundingClientRect().width) + "px";
+        clone.querySelectorAll("button,select,textarea").forEach(el => el.remove());
+        clone.querySelectorAll("input").forEach(input => {
+            const label = document.createElement("strong");
+            label.textContent = input.value || "Not recorded";
+            input.replaceWith(label);
+        });
+        clone.querySelectorAll(".profile-review-status").forEach(el => el.remove());
+    }
+    document.body.appendChild(clone);
+    try {
+        const width = Math.ceil(clone.scrollWidth);
+        const height = Math.ceil(clone.scrollHeight);
+        /* Browser canvas limits vary; reduce scale for very large matrices. */
+        const scale = Math.min(2, 16000/Math.max(width,height), Math.sqrt(60000000/(width*height)));
+        if(scale <= 0 || !Number.isFinite(scale)) throw new Error("Invalid export dimensions");
+        const canvas = await html2canvas(clone,{backgroundColor:"#fffaf0",useCORS:true,allowTaint:false,scale, width,height,windowWidth:Math.max(window.innerWidth,width),scrollX:0,scrollY:0,logging:false});
+        const url = canvas.toDataURL("image/png");
+        const link = document.createElement("a");link.href=url;link.download=name+".png";
+        document.body.appendChild(link);link.click();link.remove();
+    }catch(error){console.error("Image export failed:",error);alert("Could not export this image. The result may exceed this browser's canvas limit.");}
+    finally{clone.remove();}
+}
+function downloadPersonnelProfileImage(personID){
+    if(String(selectedPerson)!==String(personID)) return;
+    const person=personnel.find(p=>String(p.id)===String(personID));
+    const panel=document.getElementById("passportPanel");
+    if(person&&panel) exportRegistryElementPNG(panel,"Personnel_"+safeExportName(person.username||person.id));
+}
+function downloadPersonnelSpreadsheetImage(){
+    if(personnelViewMode!=="sheet") return;
+    const table=document.querySelector("#personnelSpreadsheet .personnel-sheet-table");
+    if(table) exportRegistryElementPNG(table,"Personnel_Search_Results",{sheet:true});
+}
 
 const SPECIAL_RECORD_DATE_BEFORE_SEPTEMBER_2026 =
 "Before September 2026";
