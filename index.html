@@ -1858,6 +1858,7 @@ Staff Desk
 </button>
 
 <button id="reviewTabButton" class="tab-button staff-review-only hidden" onclick="openTab('review',this)">Review Queue</button>
+<button id="founderMfaTabButton" class="tab-button hidden" onclick="openTab('founderMfa',this)">MFA Approvals</button>
 
 
 </nav>
@@ -2494,6 +2495,15 @@ The selected date and note will be stored with the rank, medal or title record.
 </div>
 </section>
 
+
+<!-- MFA SECURITY: Founder-only approval panel (preview) -->
+<section id="founderMfaTab" class="tab-content">
+  <div class="section-header"><div><div class="small-title">FOUNDER SECURITY</div><h2>MFA Approvals</h2></div></div>
+  <p>Only the Founding Administrator may approve or revoke a verified authenticator. An account without a verified authenticator cannot be approved.</p>
+  <button type="button" class="secondary-btn" onclick="loadFounderMfaApprovals()">Refresh accounts</button>
+  <p id="founderMfaStatus" role="status"></p>
+  <div id="founderMfaAccounts"></div>
+</section>
 </main>
 
 <div id="siteVersionBadge" class="site-version">Version —</div>
@@ -2931,6 +2941,51 @@ async function enterGuest() {
 
 
 /* =========================================================
+   MFA APPROVALS — Founder only; server RPCs enforce permissions.
+   Preview only: do not deploy before full RLS enforcement audit.
+   ========================================================= */
+async function loadFounderMfaApprovals() {
+    const output = document.getElementById("founderMfaAccounts");
+    const status = document.getElementById("founderMfaStatus");
+    if(!output || !status || currentStaffProfile?.is_founder !== true) return;
+    output.replaceChildren();
+    status.textContent = "Loading account approvals...";
+    const {data, error} = await supabaseClient.rpc("registry_list_mfa_accounts");
+    if(error) { status.textContent = "Unable to load approvals: " + error.message; return; }
+    status.textContent = `${data.length} eligible account(s).`;
+    for(const account of data) {
+        const entry = document.createElement("div");
+        entry.style.cssText = "padding:14px;margin:12px 0;border:1px solid #b9a68d";
+        const heading = document.createElement("strong");
+        heading.textContent = `${account.account_name} (${account.account_role})`;
+        const description = document.createElement("p");
+        const approved = !!account.approved_at && !account.revoked_at &&
+            account.approved_factor_id === account.factor_id && account.factor_status === "verified";
+        description.textContent = `Authenticator: ${account.factor_status || "not enrolled"}; Approval: ${approved ? "approved" : "pending / revoked"}`;
+        entry.append(heading, description);
+        const action = document.createElement("button");
+        action.type = "button";
+        action.className = "secondary-btn";
+        action.textContent = approved ? "Revoke approval" : "Approve authenticator";
+        action.disabled = !approved && (!account.account_active || !account.factor_id || account.factor_status !== "verified");
+        action.addEventListener("click", async () => {
+            const grant = !approved;
+            if(!confirm(`${grant ? "Approve" : "Revoke"} MFA access for ${account.account_name}?`)) return;
+            action.disabled = true;
+            const {error: changeError} = await supabaseClient.rpc("registry_set_mfa_approval", {
+                target_user: account.user_id,
+                target_factor: account.factor_id,
+                grant_approval: grant
+            });
+            if(changeError) { status.textContent = "Approval operation failed: " + changeError.message; action.disabled = false; return; }
+            await loadFounderMfaApprovals();
+        });
+        entry.append(action);
+        output.append(entry);
+    }
+}
+
+/* =========================================================
    STAFF LOGIN
    ========================================================= */
 
@@ -3041,6 +3096,17 @@ async function verifyStaffMfa() {
         if(verifyError) throw verifyError;
         const {data: assurance, error: assuranceError} = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
         if(assuranceError || assurance.currentLevel !== "aal2") throw new Error("Second-factor assurance was not confirmed.");
+        // MFA SECURITY: a verified TOTP is necessary but not sufficient.
+        // The server checks active Staff status and Founder-approved factor.
+        const {data: permitted, error: accessError} =
+            await supabaseClient.rpc("registry_mfa_access_ok");
+        if(accessError || permitted !== true) {
+            hideStaffMfa();
+            await supabaseClient.auth.signOut();
+            document.getElementById("loginMessage").textContent =
+                "MFA verified, but registry access awaits Founding Administrator approval. Please contact the Founder.";
+            return;
+        }
         hideStaffMfa();
         await completeStaffLogin(pending.resolvedProfile);
     } catch(err) {
@@ -3055,6 +3121,8 @@ async function completeStaffLogin(resolvedProfile) {
     staffRole = String(resolvedProfile.role || "staff").trim().toLowerCase();
     document.getElementById("loginMessage").textContent = "";
     configurePermissions();
+    const founderMfaButton = document.getElementById("founderMfaTabButton");
+    if(founderMfaButton) founderMfaButton.classList.toggle("hidden", resolvedProfile.is_founder !== true);
     showPage("registryPage");
     startStaffInactivity();
     await loadRegistryCoreDataFromSupabase({allowMigration: true});
@@ -3165,36 +3233,12 @@ async function staffLogin() {
     }
 
 
+    // MFA SECURITY: Auth users without an explicitly provisioned Staff profile
+    // are never admitted to the privileged registry.
     if(!resolvedProfile) {
-
-        const emailName =
-        (data.user.email || "Staff")
-        .split("@")[0]
-        .replace(/[._-]+/g, " ")
-        .replace(/\b\w/g, character => character.toUpperCase());
-
-
-        resolvedProfile = {
-
-            id: data.user.id,
-
-            account_name:
-            (data.user.email || "staff").split("@")[0],
-
-            display_name:
-            emailName || "Staff",
-
-            role:
-            "staff",
-
-            active:
-            true,
-
-            is_founder:
-            false
-
-        };
-
+        await supabaseClient.auth.signOut();
+        message.textContent = "No authorised Staff profile exists for this account.";
+        return;
     }
 
 
@@ -3355,6 +3399,7 @@ async function exitRegistry() {
     staffRole = null;
 
     currentStaffProfile = null;
+    document.getElementById("founderMfaTabButton")?.classList.add("hidden");
 
     selectedPerson = null;
 
@@ -3368,6 +3413,12 @@ async function exitRegistry() {
    ========================================================= */
 
 async function openTab(tabName,button) {
+    if(tabName === "founderMfa") {
+        if(userRole !== "staff" || currentStaffProfile?.is_founder !== true) return;
+        const {data: allowed, error: accessError} = await supabaseClient.rpc("registry_mfa_access_ok");
+        if(accessError || allowed !== true) return;
+        await loadFounderMfaApprovals();
+    }
 
     /* Enforce role restrictions even if somebody calls openTab() manually.
        Guests may view the Regiment / Unit Roster, while ordinary Staff may not.
