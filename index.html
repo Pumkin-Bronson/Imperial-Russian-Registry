@@ -1769,6 +1769,16 @@ Sign In
 </button>
 
 <p id="loginMessage" class="login-message"></p>
+<div id="staffMfaPanel" class="hidden" aria-live="polite">
+  <h2 id="staffMfaTitle">Authenticator verification</h2>
+  <p id="staffMfaInstructions" class="person-meta"></p>
+  <div id="staffMfaQr" class="hidden" style="text-align:center;margin:15px 0"></div>
+  <label for="staffMfaCode">Six-digit authenticator code</label>
+  <input id="staffMfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000">
+  <button type="button" class="primary-btn" onclick="verifyStaffMfa()">Verify and Enter Registry</button>
+  <button type="button" class="secondary-btn" onclick="cancelStaffMfa()">Cancel</button>
+  <p id="staffMfaMessage" class="login-message"></p>
+</div>
 
 
 <div class="demo-login">
@@ -2896,6 +2906,9 @@ function showPage(pageID) {
    ========================================================= */
 
 async function enterGuest() {
+    stopStaffInactivity();
+    hideStaffMfa();
+    await supabaseClient.auth.signOut();
     snapshotPersonnelEdits();
 
     userRole = "guest";
@@ -2923,10 +2936,132 @@ async function enterGuest() {
 
 function openStaffLogin() {
 
+    hideStaffMfa();
     showPage("loginPage");
 
 }
 
+
+let pendingStaffMfa = null;
+let staffInactivityTimer = null;
+let staffLastActivity = 0;
+const STAFF_INACTIVITY_MS = 30 * 60 * 1000;
+
+function stopStaffInactivity() {
+    if(staffInactivityTimer) clearInterval(staffInactivityTimer);
+    staffInactivityTimer = null;
+}
+function recordStaffActivity() {
+    if(userRole === "staff" && currentStaffProfile) staffLastActivity = Date.now();
+}
+function startStaffInactivity() {
+    stopStaffInactivity();
+    staffLastActivity = Date.now();
+    staffInactivityTimer = setInterval(async () => {
+        if(userRole !== "staff") return stopStaffInactivity();
+        if(Date.now() - staffLastActivity >= STAFF_INACTIVITY_MS) {
+            stopStaffInactivity();
+            await exitRegistry();
+            openStaffLogin();
+            document.getElementById("loginMessage").textContent = "Signed out after 30 minutes of inactivity. Please sign in again.";
+        }
+    }, 15000);
+}
+["pointerdown", "keydown", "touchstart", "scroll"].forEach(type =>
+    document.addEventListener(type, recordStaffActivity, {passive:true}));
+window.addEventListener("focus", () => {
+    if(userRole === "staff" && Date.now() - staffLastActivity >= STAFF_INACTIVITY_MS) {
+        stopStaffInactivity();
+        exitRegistry().then(() => { openStaffLogin(); document.getElementById("loginMessage").textContent = "Session expired due to inactivity."; });
+    }
+});
+
+function hideStaffMfa() {
+    pendingStaffMfa = null;
+    document.getElementById("staffMfaPanel").classList.add("hidden");
+    document.getElementById("staffMfaQr").replaceChildren();
+    document.getElementById("staffMfaQr").classList.add("hidden");
+    document.getElementById("staffMfaCode").value = "";
+}
+async function cancelStaffMfa() {
+    hideStaffMfa();
+    await supabaseClient.auth.signOut();
+    document.getElementById("loginMessage").textContent = "Authentication cancelled.";
+}
+async function requireStaffMfa(user, resolvedProfile) {
+    const panel = document.getElementById("staffMfaPanel");
+    const qr = document.getElementById("staffMfaQr");
+    const status = document.getElementById("staffMfaMessage");
+    panel.classList.remove("hidden");
+    qr.replaceChildren(); qr.classList.add("hidden"); status.textContent = "";
+    document.getElementById("loginMessage").textContent = "";
+    document.getElementById("staffMfaCode").value = "";
+    try {
+        const {data: factors, error: listError} = await supabaseClient.auth.mfa.listFactors();
+        if(listError) throw listError;
+        let factor = (factors.totp || []).find(f => f.status === "verified");
+        pendingStaffMfa = {user, resolvedProfile, factorId: factor?.id || null};
+        if(!factor) {
+            document.getElementById("staffMfaTitle").textContent = "Set up mandatory authenticator";
+            document.getElementById("staffMfaInstructions").textContent = "Scan this QR code with Google Authenticator or Microsoft Authenticator, then enter the six-digit code to activate your account's second factor.";
+            const {data: enrollment, error: enrollError} = await supabaseClient.auth.mfa.enroll({factorType:"totp", friendlyName:"Imperial Registry Authenticator"});
+            if(enrollError) throw enrollError;
+            pendingStaffMfa.factorId = enrollment.id;
+            if(enrollment.totp?.qr_code) {
+                const img = document.createElement("img");
+                img.src = enrollment.totp.qr_code;
+                img.alt = "Scan this authenticator setup QR code";
+                img.style.maxWidth = "220px";
+                qr.appendChild(img);
+                qr.classList.remove("hidden");
+            }
+        } else {
+            document.getElementById("staffMfaTitle").textContent = "Authenticator verification";
+            document.getElementById("staffMfaInstructions").textContent = "Enter the current six-digit code from your authenticator app to complete this login.";
+        }
+    } catch(err) {
+        console.error("MFA preparation failed", err);
+        status.textContent = "Unable to prepare authenticator verification. Please retry signing in.";
+        pendingStaffMfa = null;
+        await supabaseClient.auth.signOut();
+    }
+}
+async function verifyStaffMfa() {
+    const status = document.getElementById("staffMfaMessage");
+    const code = document.getElementById("staffMfaCode").value.trim();
+    if(!pendingStaffMfa?.factorId || !/^\d{6}$/.test(code)) {
+        status.textContent = "Enter a valid six-digit code."; return;
+    }
+    const pending = pendingStaffMfa;
+    status.textContent = "Verifying...";
+    try {
+        const {data: challenge, error: challengeError} = await supabaseClient.auth.mfa.challenge({factorId:pending.factorId});
+        if(challengeError) throw challengeError;
+        const {error: verifyError} = await supabaseClient.auth.mfa.verify({factorId:pending.factorId, challengeId:challenge.id, code});
+        if(verifyError) throw verifyError;
+        const {data: assurance, error: assuranceError} = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
+        if(assuranceError || assurance.currentLevel !== "aal2") throw new Error("Second-factor assurance was not confirmed.");
+        hideStaffMfa();
+        await completeStaffLogin(pending.resolvedProfile);
+    } catch(err) {
+        console.error("MFA verification failed", err);
+        status.textContent = "Authenticator code was not accepted. Please check the code and try again.";
+    }
+}
+async function completeStaffLogin(resolvedProfile) {
+    currentStaffProfile = resolvedProfile;
+    userRole = "staff";
+    staffName = resolvedProfile.account_name;
+    staffRole = String(resolvedProfile.role || "staff").trim().toLowerCase();
+    document.getElementById("loginMessage").textContent = "";
+    configurePermissions();
+    showPage("registryPage");
+    startStaffInactivity();
+    await loadRegistryCoreDataFromSupabase({allowMigration: true});
+    await loadReviewQueueFromSupabase({silent: true});
+    renderEverything();
+    await loadRegistryUpdatesFromSupabase();
+}
 
 async function staffLogin() {
 
@@ -3075,38 +3210,8 @@ async function staffLogin() {
     }
 
 
-    currentStaffProfile =
-    resolvedProfile;
-
-
-    userRole =
-    "staff";
-
-
-    staffName =
-    resolvedProfile.account_name;
-
-
-    staffRole =
-    String(resolvedProfile.role || "staff").trim().toLowerCase();
-
-
-    message.textContent =
-    "";
-
-
-    configurePermissions();
-
-    showPage("registryPage");
-
-    /* Load shared Personnel + Unit data. If Supabase is still empty,
-       the first authenticated staff session may migrate this browser's
-       existing local records into the shared tables. */
-    await loadRegistryCoreDataFromSupabase({allowMigration: true});
-    await loadReviewQueueFromSupabase({silent: true});
-
-    renderEverything();
-    await loadRegistryUpdatesFromSupabase();
+    // A password-only session must never open privileged registry screens.
+    await requireStaffMfa(data.user, resolvedProfile);
 
 }
 
@@ -3231,6 +3336,8 @@ function configurePermissions() {
 
 async function exitRegistry() {
 
+    stopStaffInactivity();
+    hideStaffMfa();
     stopRobloxAvatarAutoRefresh();
 
 
@@ -10753,116 +10860,18 @@ function renderEverything() {
    ========================================================= */
 
 async function restoreStaffSession() {
-
-    if(
-        SUPABASE_PUBLISHABLE_KEY.includes("PASTE_YOUR_")
-    ) {
-
-        return;
-
-    }
-
-
-    const { data } =
-    await supabaseClient.auth.getUser();
-
-
-    if(!data.user) {
-
-        return;
-
-    }
-
-
-    const { data: profile, error } =
-    await supabaseClient
-    .from("staff_profiles")
-    .select("id, account_name, display_name, role, active, is_founder")
-    .eq("id", data.user.id)
-    .maybeSingle();
-
-
-    if(error) {
-
-        await supabaseClient.auth.signOut();
-
-        return;
-
-    }
-
-
-    let resolvedProfile = profile;
-
-
-    if(!resolvedProfile) {
-
-        const emailName =
-        (data.user.email || "Staff")
-        .split("@")[0]
-        .replace(/[._-]+/g, " ")
-        .replace(/\b\w/g, character => character.toUpperCase());
-
-
-        resolvedProfile = {
-
-            id: data.user.id,
-
-            account_name:
-            (data.user.email || "staff").split("@")[0],
-
-            display_name:
-            emailName || "Staff",
-
-            role:
-            "staff",
-
-            active:
-            true,
-
-            is_founder:
-            false
-
-        };
-
-    }
-
-
-    if(resolvedProfile.active !== true) {
-
-        await supabaseClient.auth.signOut();
-
-        return;
-
-    }
-
-
-    currentStaffProfile =
-    resolvedProfile;
-
-
-    userRole =
-    "staff";
-
-
-    staffName =
-    resolvedProfile.account_name;
-
-
-    staffRole =
-    String(resolvedProfile.role || "staff").trim().toLowerCase();
-
-
-    configurePermissions();
-
-    showPage("registryPage");
-
-    await loadRegistryCoreDataFromSupabase({allowMigration: true});
-    await loadReviewQueueFromSupabase({silent: true});
-
-    renderEverything();
-    await loadRegistryUpdatesFromSupabase();
-
+    // Each new page session requires a fresh password and authenticator code.
+    // Do not trust a previously persisted Supabase session for Staff/Admin access.
+    const {data: {session}, error} = await supabaseClient.auth.getSession();
+    if(error) console.error("Session check failed", error);
+    if(session) await supabaseClient.auth.signOut();
+    currentStaffProfile = null;
+    userRole = null;
+    staffName = null;
+    staffRole = null;
+    stopStaffInactivity();
 }
+
 
 
 renderEverything();
