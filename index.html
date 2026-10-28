@@ -1858,7 +1858,7 @@ Staff Desk
 </button>
 
 <button id="reviewTabButton" class="tab-button staff-review-only hidden" onclick="openTab('review',this)">Review Queue</button>
-<button id="founderMfaTabButton" class="tab-button hidden" onclick="openTab('founderMfa',this)">MFA Approvals</button>
+<button id="founderAccountsTabButton" class="tab-button hidden" onclick="openTab('founderAccounts',this)">Staff Accounts</button>
 
 
 </nav>
@@ -2496,13 +2496,13 @@ The selected date and note will be stored with the rank, medal or title record.
 </section>
 
 
-<!-- MFA SECURITY: Founder-only approval panel (preview) -->
-<section id="founderMfaTab" class="tab-content">
-  <div class="section-header"><div><div class="small-title">FOUNDER SECURITY</div><h2>MFA Approvals</h2></div></div>
-  <p>Only the Founding Administrator may approve or revoke a verified authenticator. An account without a verified authenticator cannot be approved.</p>
-  <button type="button" class="secondary-btn" onclick="loadFounderMfaApprovals()">Refresh accounts</button>
-  <p id="founderMfaStatus" role="status"></p>
-  <div id="founderMfaAccounts"></div>
+<!-- STAGE 2D: Founder-only Staff Account Management -->
+<section id="founderAccountsTab" class="tab-content">
+  <div class="section-header"><div><div class="small-title">FOUNDER ADMINISTRATION</div><h2>Staff Account Management</h2></div></div>
+  <p class="account-help">Create new Authentication users in Supabase. New staff profiles remain inactive until you activate them here. Changes require Founder access and verified MFA.</p>
+  <button type="button" class="secondary-btn" onclick="renderFounderAccounts()">Refresh Accounts</button>
+  <p id="founderAccountsStatus" role="status" aria-live="polite"></p>
+  <div id="founderAccountsList" class="account-list"></div>
 </section>
 </main>
 
@@ -2941,51 +2941,6 @@ async function enterGuest() {
 
 
 /* =========================================================
-   MFA APPROVALS — Founder only; server RPCs enforce permissions.
-   Preview only: do not deploy before full RLS enforcement audit.
-   ========================================================= */
-async function loadFounderMfaApprovals() {
-    const output = document.getElementById("founderMfaAccounts");
-    const status = document.getElementById("founderMfaStatus");
-    if(!output || !status || currentStaffProfile?.is_founder !== true) return;
-    output.replaceChildren();
-    status.textContent = "Loading account approvals...";
-    const {data, error} = await supabaseClient.rpc("registry_list_mfa_accounts");
-    if(error) { status.textContent = "Unable to load approvals: " + error.message; return; }
-    status.textContent = `${data.length} eligible account(s).`;
-    for(const account of data) {
-        const entry = document.createElement("div");
-        entry.style.cssText = "padding:14px;margin:12px 0;border:1px solid #b9a68d";
-        const heading = document.createElement("strong");
-        heading.textContent = `${account.account_name} (${account.account_role})`;
-        const description = document.createElement("p");
-        const approved = !!account.approved_at && !account.revoked_at &&
-            account.approved_factor_id === account.factor_id && account.factor_status === "verified";
-        description.textContent = `Authenticator: ${account.factor_status || "not enrolled"}; Approval: ${approved ? "approved" : "pending / revoked"}`;
-        entry.append(heading, description);
-        const action = document.createElement("button");
-        action.type = "button";
-        action.className = "secondary-btn";
-        action.textContent = approved ? "Revoke approval" : "Approve authenticator";
-        action.disabled = !approved && (!account.account_active || !account.factor_id || account.factor_status !== "verified");
-        action.addEventListener("click", async () => {
-            const grant = !approved;
-            if(!confirm(`${grant ? "Approve" : "Revoke"} MFA access for ${account.account_name}?`)) return;
-            action.disabled = true;
-            const {error: changeError} = await supabaseClient.rpc("registry_set_mfa_approval", {
-                target_user: account.user_id,
-                target_factor: account.factor_id,
-                grant_approval: grant
-            });
-            if(changeError) { status.textContent = "Approval operation failed: " + changeError.message; action.disabled = false; return; }
-            await loadFounderMfaApprovals();
-        });
-        entry.append(action);
-        output.append(entry);
-    }
-}
-
-/* =========================================================
    STAFF LOGIN
    ========================================================= */
 
@@ -3058,7 +3013,7 @@ async function requireStaffMfa(user, resolvedProfile) {
         pendingStaffMfa = {user, resolvedProfile, factorId: factor?.id || null};
         if(!factor) {
             document.getElementById("staffMfaTitle").textContent = "Set up mandatory authenticator";
-            document.getElementById("staffMfaInstructions").textContent = "Scan this QR code with Google Authenticator or Microsoft Authenticator, then enter the six-digit code to activate your account's second factor.";
+            document.getElementById("staffMfaInstructions").textContent = "Scan this unique QR code using your own Google Authenticator app, then enter its six-digit code to activate MFA. Never share this QR code or synchronise your authenticator with another person.";
             const {data: enrollment, error: enrollError} = await supabaseClient.auth.mfa.enroll({factorType:"totp", friendlyName:"Imperial Registry Authenticator"});
             if(enrollError) throw enrollError;
             pendingStaffMfa.factorId = enrollment.id;
@@ -3072,7 +3027,7 @@ async function requireStaffMfa(user, resolvedProfile) {
             }
         } else {
             document.getElementById("staffMfaTitle").textContent = "Authenticator verification";
-            document.getElementById("staffMfaInstructions").textContent = "Enter the current six-digit code from your authenticator app to complete this login.";
+            document.getElementById("staffMfaInstructions").textContent = "Enter the current six-digit code from the authenticator linked to your own registry account.";
         }
     } catch(err) {
         console.error("MFA preparation failed", err);
@@ -3097,14 +3052,14 @@ async function verifyStaffMfa() {
         const {data: assurance, error: assuranceError} = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
         if(assuranceError || assurance.currentLevel !== "aal2") throw new Error("Second-factor assurance was not confirmed.");
         // MFA SECURITY: a verified TOTP is necessary but not sufficient.
-        // The server checks active Staff status and Founder-approved factor.
+        // The server checks verified MFA and an active, authorised Staff profile.
         const {data: permitted, error: accessError} =
             await supabaseClient.rpc("registry_mfa_access_ok");
         if(accessError || permitted !== true) {
             hideStaffMfa();
             await supabaseClient.auth.signOut();
             document.getElementById("loginMessage").textContent =
-                "MFA verified, but registry access awaits Founding Administrator approval. Please contact the Founder.";
+                "MFA verified, but this account is not authorised to access the registry. Contact an administrator.";
             return;
         }
         hideStaffMfa();
@@ -3121,8 +3076,7 @@ async function completeStaffLogin(resolvedProfile) {
     staffRole = String(resolvedProfile.role || "staff").trim().toLowerCase();
     document.getElementById("loginMessage").textContent = "";
     configurePermissions();
-    const founderMfaButton = document.getElementById("founderMfaTabButton");
-    if(founderMfaButton) founderMfaButton.classList.toggle("hidden", resolvedProfile.is_founder !== true);
+    document.getElementById("founderAccountsTabButton")?.classList.toggle("hidden", resolvedProfile.is_founder !== true || staffRole !== "admin");
     showPage("registryPage");
     startStaffInactivity();
     await loadRegistryCoreDataFromSupabase({allowMigration: true});
@@ -3206,15 +3160,6 @@ async function staffLogin() {
     .eq("id", data.user.id)
     .maybeSingle();
 
-
-    /*
-       FLEXIBLE STAFF LOGIN
-       --------------------
-       If a Supabase Authentication user exists but no staff_profiles row
-       has been created yet, allow that authenticated user to enter as
-       normal Staff automatically. Existing staff_profiles rows still take
-       priority, so your Founding Administrator keeps full admin access.
-    */
 
     let resolvedProfile = profile;
 
@@ -3399,7 +3344,7 @@ async function exitRegistry() {
     staffRole = null;
 
     currentStaffProfile = null;
-    document.getElementById("founderMfaTabButton")?.classList.add("hidden");
+    document.getElementById("founderAccountsTabButton")?.classList.add("hidden");
 
     selectedPerson = null;
 
@@ -3413,11 +3358,11 @@ async function exitRegistry() {
    ========================================================= */
 
 async function openTab(tabName,button) {
-    if(tabName === "founderMfa") {
-        if(userRole !== "staff" || currentStaffProfile?.is_founder !== true) return;
+    if(tabName === "founderAccounts") {
+        if(userRole !== "staff" || staffRole !== "admin" || currentStaffProfile?.is_founder !== true) return;
         const {data: allowed, error: accessError} = await supabaseClient.rpc("registry_mfa_access_ok");
         if(accessError || allowed !== true) return;
-        await loadFounderMfaApprovals();
+        await renderFounderAccounts();
     }
 
     /* Enforce role restrictions even if somebody calls openTab() manually.
@@ -9635,592 +9580,72 @@ function renderAudit() {
 
 
 /* =========================================================
-   SECURE STAFF ACCOUNT MANAGEMENT — SUPABASE EDGE FUNCTION
+   STAGE 2D — FOUNDER ACCOUNT MANAGEMENT (RPC ONLY)
    ========================================================= */
-
-function requireAdministrator() {
-
-    if(
-        userRole !== "staff"
-        ||
-        staffRole !== "admin"
-    ) {
-
-        alert(
-        "Administrator access is required."
-        );
-
-        return false;
-
-    }
-
-    return true;
-
+function founderAccountsAuthorized() {
+    return userRole === "staff" && staffRole === "admin" && currentStaffProfile?.is_founder === true;
 }
 
-
-async function callStaffAdmin(action, payload = {}) {
-
-    if(!requireAdministrator()) {
-        return null;
-    }
-
-    try {
-
-        const { data, error } =
-        await supabaseClient.functions.invoke(
-            "manage-staff",
-            {
-                body: {
-                    action: action,
-                    ...payload
-                }
+async function renderFounderAccounts() {
+    const panel = document.getElementById("founderAccountsList");
+    const status = document.getElementById("founderAccountsStatus");
+    if(!panel || !status || !founderAccountsAuthorized()) return;
+    panel.replaceChildren();
+    status.textContent = "Loading accounts...";
+    const {data, error} = await supabaseClient.rpc("registry_founder_list_staff");
+    if(error) { status.textContent = "Unable to load accounts: " + error.message; return; }
+    status.textContent = `${(data || []).length} account(s).`;
+    for(const account of data || []) {
+        const row = document.createElement("div");
+        row.className = "account-row";
+        const details = document.createElement("div");
+        const name = document.createElement("div");
+        name.className = "account-name";
+        name.textContent = account.display_name || account.account_name || "Unnamed account";
+        const meta = document.createElement("div");
+        meta.className = "account-meta";
+        meta.textContent = `${account.account_name || ""} · ${account.role} · ${account.active ? "Active" : "Inactive"}${account.is_founder ? " · Founder (protected)" : ""}`;
+        details.append(name,meta);
+        row.append(details);
+        if(!account.is_founder) {
+            const actions = document.createElement("div");
+            actions.className = "account-actions";
+            const role = document.createElement("select");
+            role.setAttribute("aria-label", "Role for " + (account.account_name || "account"));
+            for(const [value,label] of [["staff","Staff"],["admin","Administrator"]]) {
+                const opt = document.createElement("option"); opt.value=value; opt.textContent=label;
+                role.append(opt);
             }
-        );
-
-        if(error) {
-
-            console.error(
-                "Supabase manage-staff Edge Function error:",
-                error
-            );
-
-            return {
-                __edgeFunctionError: true,
-                message:
-                error.message
-                ||
-                "The Supabase staff administration function is unavailable."
-            };
-
+            role.value = account.role;
+            role.style.width = "auto";
+            const save = document.createElement("button");
+            save.type="button"; save.className="small-action-btn"; save.textContent="Save Role";
+            save.addEventListener("click", () => updateFounderAccount(account,role.value,account.active,save));
+            const toggle = document.createElement("button");
+            toggle.type="button"; toggle.className=account.active ? "danger-btn" : "small-action-btn";
+            toggle.textContent=account.active ? "Deactivate" : "Activate";
+            toggle.addEventListener("click", () => updateFounderAccount(account,role.value,!account.active,toggle));
+            actions.append(role,save,toggle);
+            row.append(actions);
         }
-
-        if(data && data.error) {
-
-            console.error(
-                "Supabase manage-staff returned an error:",
-                data.error
-            );
-
-            return {
-                __edgeFunctionError: true,
-                message: data.error
-            };
-
-        }
-
-        return data;
-
+        panel.append(row);
     }
-
-    catch(error) {
-
-        console.error(
-            "Could not reach Supabase manage-staff Edge Function:",
-            error
-        );
-
-        return {
-            __edgeFunctionError: true,
-            message:
-            error && error.message
-            ? error.message
-            : "Could not reach the Supabase staff administration function."
-        };
-
-    }
-
 }
 
-
-async function createStaffAccount() {
-
-    if(!requireAdministrator()) {
-
+async function updateFounderAccount(account,role,active,button) {
+    if(!founderAccountsAuthorized() || account.is_founder) return;
+    if(!confirm(`Set ${account.account_name} to ${role} with status ${active ? "Active" : "Inactive"}?`)) return;
+    button.disabled = true;
+    const {error} = await supabaseClient.rpc("registry_founder_manage_staff", {
+        target_user: account.id, target_role: role, target_active: active
+    });
+    if(error) {
+        document.getElementById("founderAccountsStatus").textContent = "Update failed: " + error.message;
+        button.disabled = false;
         return;
-
     }
-
-
-    const email =
-    document
-    .getElementById("newStaffEmail")
-    .value
-    .trim();
-
-
-    const accountName =
-    document
-    .getElementById("newStaffAccountName")
-    .value
-    .trim();
-
-
-    const password =
-    document
-    .getElementById("newStaffAccountPassword")
-    .value;
-
-
-    const displayName =
-    document
-    .getElementById("newStaffDisplayName")
-    .value
-    .trim();
-
-
-    const role =
-    document
-    .getElementById("newStaffRole")
-    .value;
-
-
-    if(!email || !email.includes("@")) {
-
-        alert(
-        "Please enter a valid staff email address."
-        );
-
-        return;
-
-    }
-
-
-    if(
-        !/^[A-Za-z0-9_.-]{3,32}$/.test(accountName)
-    ) {
-
-        alert(
-        "Account names must be 3–32 characters and use letters, numbers, _, . or - only."
-        );
-
-        return;
-
-    }
-
-
-    if(password.length < 8) {
-
-        alert(
-        "Password must contain at least 8 characters."
-        );
-
-        return;
-
-    }
-
-
-    const result =
-    await callStaffAdmin(
-        "create",
-        {
-            email,
-            accountName,
-            password,
-            displayName,
-            role
-        }
-    );
-
-
-    if(
-        !result
-        ||
-        result.__edgeFunctionError
-    ) {
-
-        alert(
-            result && result.message
-            ? result.message
-            : "Supabase staff account management is unavailable."
-        );
-
-        return;
-
-    }
-
-
-    clearStaffAccountForm();
-
-    await renderStaffAccounts();
-
-    addAudit(
-        "Created "
-        +
-        role
-        +
-        " account "
-        +
-        accountName
-    );
-
-    saveData();
-
-    renderAudit();
-
-    alert(
-        "Staff account created."
-    );
-
+    await renderFounderAccounts();
 }
-
-
-function clearStaffAccountForm() {
-
-    document
-    .getElementById("newStaffEmail")
-    .value = "";
-
-
-    document
-    .getElementById("newStaffAccountName")
-    .value = "";
-
-
-    document
-    .getElementById("newStaffAccountPassword")
-    .value = "";
-
-
-    document
-    .getElementById("newStaffDisplayName")
-    .value = "";
-
-
-    document
-    .getElementById("newStaffRole")
-    .value = "staff";
-
-}
-
-
-async function loadStaffAccountsFromSupabase() {
-
-    if(!requireAdministrator()) {
-        return;
-    }
-
-    await renderStaffAccounts();
-
-}
-
-
-async function renderStaffAccounts() {
-
-    const panel =
-    document
-    .getElementById("staffAccountList");
-
-
-    if(!panel) {
-
-        return;
-
-    }
-
-
-    if(
-        userRole !== "staff"
-        ||
-        staffRole !== "admin"
-    ) {
-
-        panel.innerHTML = "";
-
-        return;
-
-    }
-
-
-    panel.innerHTML =
-    '<div class="person-meta">Loading staff accounts...</div>';
-
-
-    const result =
-    await callStaffAdmin("list");
-
-
-    if(
-        !result
-        ||
-        result.__edgeFunctionError
-    ) {
-
-        panel.innerHTML =
-        '<div class="person-meta">'
-        +
-        'Supabase staff account management is currently unavailable. '
-        +
-        'Ordinary registry functions are still available and do not require this Edge Function.'
-        +
-        (
-            result && result.message
-            ? '<br><br><strong>Supabase message:</strong> ' + escapeHTML(result.message)
-            : ''
-        )
-        +
-        '</div>';
-
-        return;
-
-    }
-
-
-    const accounts =
-    result.accounts || [];
-
-
-    panel.innerHTML =
-    accounts
-    .map(account => {
-
-        const isCurrent =
-        currentStaffProfile
-        &&
-        account.id === currentStaffProfile.id;
-
-
-        const protectedFounder =
-        account.is_founder === true;
-
-
-        return `
-
-        <div class="account-row">
-
-            <div>
-
-                <div class="account-name">
-                ${escapeHTML(account.display_name || account.account_name)}
-                </div>
-
-                <div class="account-meta">
-
-                ${escapeHTML(account.email || "")}
-
-                • Account:
-                ${escapeHTML(account.account_name)}
-
-                • Role:
-                ${
-                    account.role === "admin"
-                    ? "Administrator"
-                    : "Staff"
-                }
-
-                •
-
-                <span class="${
-                    account.active
-                    ? "status-active"
-                    : "status-disabled"
-                }">
-
-                ${
-                    account.active
-                    ? "Active"
-                    : "Disabled"
-                }
-
-                </span>
-
-                ${
-                    protectedFounder
-                    ? " • Founding Administrator"
-                    : ""
-                }
-
-                ${
-                    isCurrent
-                    ? " • Current account"
-                    : ""
-                }
-
-                </div>
-
-            </div>
-
-
-            <div class="account-actions">
-
-                <button
-                class="small-action-btn"
-                onclick="resetStaffPassword('${escapeJS(account.id)}','${escapeJS(account.account_name)}')">
-
-                Reset Password
-
-                </button>
-
-
-                <button
-                class="small-action-btn"
-                onclick="toggleStaffAccount('${escapeJS(account.id)}',${account.active})"
-                ${
-                    isCurrent || protectedFounder
-                    ? "disabled"
-                    : ""
-                }>
-
-                ${
-                    account.active
-                    ? "Disable"
-                    : "Enable"
-                }
-
-                </button>
-
-
-                <button
-                class="danger-btn"
-                onclick="deleteStaffAccount('${escapeJS(account.id)}','${escapeJS(account.account_name)}')"
-                ${
-                    isCurrent || protectedFounder
-                    ? "disabled"
-                    : ""
-                }>
-
-                Delete
-
-                </button>
-
-            </div>
-
-        </div>
-
-        `;
-
-    })
-    .join("");
-
-}
-
-
-async function resetStaffPassword(userId, accountName) {
-
-    if(!requireAdministrator()) {
-
-        return;
-
-    }
-
-
-    const newPassword =
-    prompt(
-        "Enter a new password for "
-        +
-        accountName
-        +
-        ".\\nMinimum 8 characters:"
-    );
-
-
-    if(newPassword === null) {
-
-        return;
-
-    }
-
-
-    if(newPassword.length < 8) {
-
-        alert(
-        "Password must contain at least 8 characters."
-        );
-
-        return;
-
-    }
-
-
-    const result =
-    await callStaffAdmin(
-        "reset_password",
-        {
-            userId,
-            password: newPassword
-        }
-    );
-
-
-    if(result && !result.__edgeFunctionError) {
-
-        alert(
-            "Password changed."
-        );
-
-    }
-
-}
-
-
-async function toggleStaffAccount(userId, currentlyActive) {
-
-    const result =
-    await callStaffAdmin(
-        "set_active",
-        {
-            userId,
-            active: !currentlyActive
-        }
-    );
-
-
-    if(result && !result.__edgeFunctionError) {
-
-        await renderStaffAccounts();
-
-    }
-
-}
-
-
-async function deleteStaffAccount(userId, accountName) {
-
-    if(!requireAdministrator()) {
-
-        return;
-
-    }
-
-
-    const confirmed =
-    confirm(
-        "Delete staff account '"
-        +
-        accountName
-        +
-        "'?\\n\\nThis removes the user's login and staff profile."
-    );
-
-
-    if(!confirmed) {
-
-        return;
-
-    }
-
-
-    const result =
-    await callStaffAdmin(
-        "delete",
-        {
-            userId
-        }
-    );
-
-
-    if(result && !result.__edgeFunctionError) {
-
-        await renderStaffAccounts();
-
-        alert(
-            "Staff account deleted."
-        );
-
-    }
-
-}
-
 
 function escapeJS(value) {
 
