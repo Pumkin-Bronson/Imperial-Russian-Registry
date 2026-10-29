@@ -2773,7 +2773,17 @@ const SUPABASE_PUBLISHABLE_KEY =
 const supabaseClient =
 supabase.createClient(
     SUPABASE_URL,
-    SUPABASE_PUBLISHABLE_KEY
+    SUPABASE_PUBLISHABLE_KEY,
+    {
+        auth: {
+            // Keep Founder and Administrator sessions independent in separate tabs/windows.
+            storage: window.sessionStorage,
+            storageKey: "vam-registry-auth-v012",
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true
+        }
+    }
 );
 
 
@@ -2986,6 +2996,69 @@ window.addEventListener("focus", () => {
     }
 });
 
+/* =========================================================
+   STAFF SESSION IDENTITY AND DEACTIVATION MONITOR
+   ========================================================= */
+let staffSessionCheckBusy = false;
+let staffSessionCheckTimer = null;
+
+function clearStaffSessionUI(message = "") {
+    stopStaffInactivity();
+    hideStaffMfa();
+    stopRobloxAvatarAutoRefresh();
+    currentStaffProfile = null;
+    userRole = null;
+    staffName = null;
+    staffRole = null;
+    pendingStaffMfa = null;
+    document.getElementById("founderAccountsTabButton")?.classList.add("hidden");
+    configurePermissions();
+    showPage("loginPage");
+    document.getElementById("loginMessage").textContent = message;
+}
+
+async function checkActiveStaffSession() {
+    if(staffSessionCheckBusy || userRole !== "staff" || !currentStaffProfile) return;
+    staffSessionCheckBusy = true;
+    try {
+        const expectedId = currentStaffProfile.id;
+        const {data: userData, error: userError} = await supabaseClient.auth.getUser();
+        if(userRole !== "staff" || currentStaffProfile?.id !== expectedId) return;
+        if(userError || !userData?.user || userData.user.id !== expectedId) {
+            clearStaffSessionUI("Your authenticated session changed or expired. Please sign in again.");
+            return;
+        }
+        const {data: permitted, error: accessError} =
+            await supabaseClient.rpc("registry_mfa_access_ok");
+        if(userRole !== "staff" || currentStaffProfile?.id !== expectedId) return;
+        if(!accessError && permitted === false) {
+            clearStaffSessionUI("This staff account is no longer authorised. Please contact the Founder.");
+            await supabaseClient.auth.signOut({scope:"local"});
+        } else if(accessError) {
+            // Network failures are not evidence of deactivation; fail closed in the UI.
+            clearStaffSessionUI("Unable to verify staff access. Please sign in again.");
+            await supabaseClient.auth.signOut({scope:"local"});
+        }
+    } catch(error) {
+        console.error("Staff session verification failed", error);
+        clearStaffSessionUI("Unable to verify staff access. Please sign in again.");
+        await supabaseClient.auth.signOut({scope:"local"});
+    } finally {
+        staffSessionCheckBusy = false;
+    }
+}
+
+staffSessionCheckTimer = setInterval(checkActiveStaffSession, 20000);
+window.addEventListener("focus", checkActiveStaffSession);
+document.addEventListener("visibilitychange", () => {
+    if(!document.hidden) checkActiveStaffSession();
+});
+supabaseClient.auth.onAuthStateChange((event) => {
+    if(event === "SIGNED_OUT" && userRole === "staff") {
+        clearStaffSessionUI("You have been signed out. Please sign in again.");
+    }
+});
+
 function hideStaffMfa() {
     pendingStaffMfa = null;
     document.getElementById("staffMfaPanel").classList.add("hidden");
@@ -3070,6 +3143,13 @@ async function verifyStaffMfa() {
     }
 }
 async function completeStaffLogin(resolvedProfile) {
+    const {data: userData, error: userError} = await supabaseClient.auth.getUser();
+    if(userError || !userData?.user || userData.user.id !== resolvedProfile.id) {
+        await supabaseClient.auth.signOut({scope:"local"});
+        document.getElementById("loginMessage").textContent =
+            "The authenticated account changed during login. Please sign in again.";
+        return;
+    }
     currentStaffProfile = resolvedProfile;
     userRole = "staff";
     staffName = resolvedProfile.account_name;
