@@ -9405,6 +9405,30 @@ async function submitRecordFlag(){
             + " — " + category + ": " + pendingFlagTarget.targetLabel
         );
 
+        // A successfully submitted flag counts as an edit to the affected
+        // profile. Persist only that profile; do not rewrite the entire registry.
+        // Review Queue resolutions/deletions deliberately do not call this.
+        const previousEditor = person.lastEditedBy;
+        const previousEditedAt = person.lastEditedAt;
+        person.lastEditedBy = String(
+            currentStaffProfile?.account_name ||
+            currentStaffProfile?.display_name || staffName || "Staff"
+        );
+        person.lastEditedAt = new Date().toISOString();
+        const { error: attributionError } = await supabaseClient
+            .from("registry_personnel")
+            .update({data: person, updated_at: person.lastEditedAt})
+            .eq("id", String(person.id));
+        if(attributionError) {
+            person.lastEditedBy = previousEditor;
+            person.lastEditedAt = previousEditedAt;
+            console.error("Flag saved, but profile attribution update failed:", attributionError);
+            alert("The flag was saved, but Last Edited attribution could not be updated.");
+        } else {
+            cacheRegistryCoreData();
+            snapshotPersonnelEdits();
+        }
+
         cancelFlagRecord();
         await loadReviewQueueFromSupabase({silent: true});
         openPassport(person.id);
