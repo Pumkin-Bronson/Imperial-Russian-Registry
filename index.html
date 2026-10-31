@@ -9629,8 +9629,8 @@ async function resolveRecordFlag(flagId,resolution){
 
         const resolutionText =
             resolution === "no_change"
-            ? "No Change Required"
-            : "Correction Required";
+            ? "Review Checked. No Actions Required"
+            : "Correction Required. Actions Carried Out.";
 
         const { error } = await supabaseClient
             .from("registry_record_flags")
