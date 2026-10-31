@@ -1605,10 +1605,30 @@ th {
     height: calc(100dvh - 275px);
     min-height: 320px;
     max-height: calc(100dvh - 275px);
-    overflow: auto;
+    overflow-x: scroll;
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
+    scrollbar-width: auto;
     overscroll-behavior: contain;
     position: relative;
     isolation: isolate;
+}
+/* Keep spreadsheet scrollbars identifiable at the matrix edges.
+   On macOS, native scrollbar visibility still follows system preferences. */
+#personnelSpreadsheet.active > .table-container::-webkit-scrollbar {
+    width: 14px;
+    height: 14px;
+}
+#personnelSpreadsheet.active > .table-container::-webkit-scrollbar-track {
+    background: #e9dfce;
+}
+#personnelSpreadsheet.active > .table-container::-webkit-scrollbar-thumb {
+    background: #a98743;
+    border: 3px solid #e9dfce;
+    border-radius: 8px;
+}
+#personnelSpreadsheet.active > .table-container::-webkit-scrollbar-corner {
+    background: #e9dfce;
 }
 #personnelSpreadsheet .personnel-sheet-table th.sheet-col-permission {
     font-size: 12px;
@@ -6524,7 +6544,7 @@ async function exportRegistryElementPNG(element, name, {sheet = false} = {}){
             label.textContent = input.value || "Not recorded";
             input.replaceWith(label);
         });
-        clone.querySelectorAll(".profile-review-status").forEach(el => el.remove());
+        clone.querySelectorAll(".profile-review-status,.profile-last-edited").forEach(el => el.remove());
     }
     document.body.appendChild(clone);
     try {
