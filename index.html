@@ -1661,6 +1661,12 @@ th {
     background: #b99a6b;
 }
 
+/* Registry navigation and rank breakdown enhancements */
+.section-refresh-btn{align-self:center;white-space:nowrap;margin-left:auto}
+.personnel-rank-breakdown{font:12px Arial,sans-serif;color:var(--muted);line-height:1.5;text-align:right}
+.review-profile-link-row{margin-top:12px}
+.review-actions>button{width:290px;max-width:100%;min-height:56px;margin-top:0;text-align:center}
+@media(max-width:700px){.section-header{display:flex;align-items:center;flex-wrap:wrap}.personnel-rank-breakdown{text-align:left}.review-actions>button{width:100%}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -1883,6 +1889,7 @@ CENTRAL REGISTER
 <h2>Personnel</h2>
 
 </div>
+<button type="button" class="secondary-btn section-refresh-btn" onclick="refreshRegistrySection('personnel')">Refresh Page</button>
 
 <div
 id="personnelResultCount"
@@ -1891,6 +1898,7 @@ aria-live="polite">
 0 MATCHED RESULTS
 </div>
 
+<div id="personnelRankBreakdown" class="personnel-rank-breakdown" aria-live="polite"></div>
 <div class="personnel-search-controls">
 
 <select
@@ -1969,6 +1977,7 @@ IMPERIAL FORMATIONS
 <h2>Regiment / Unit Roster</h2>
 
 </div>
+<button type="button" class="secondary-btn section-refresh-btn" onclick="refreshRegistrySection('ranks')">Refresh Page</button>
 
 </div>
 
@@ -2220,7 +2229,8 @@ Input
 <select id="quickRecordAction" onchange="updateQuickRecorder()">
 <option value="">Select an action...</option>
 <optgroup label="Rank">
-<option value="rank::Nachal'nik General'novo Shtaba">Nachal'nik General'novo Shtaba</option>
+<option value="rank::Tsar">Tsar</option>
+<option value="rank::Nachal'nik General'nogo Shtaba">Nachal'nik General'nogo Shtaba</option>
 <option value="rank::General-Feld'marshal">General-Feld'marshal</option>
 <option value="rank::General-Leytenant">General-Leytenant</option>
 <option value="rank::General-Mayor">General-Mayor</option>
@@ -2488,7 +2498,7 @@ The selected date and note will be stored with the rank, medal or title record.
 
 <!-- ADMIN REVIEW QUEUE -->
 <section id="reviewTab" class="tab-content staff-review-only hidden">
-<div class="section-header"><div><div class="small-title">INTERNAL VERIFICATION</div><h2>Flagged Records / Review Queue</h2></div></div>
+<div class="section-header"><div><div class="small-title">INTERNAL VERIFICATION</div><h2>Flagged Records / Review Queue</h2></div><button type="button" class="secondary-btn section-refresh-btn" onclick="refreshRegistrySection('review')">Refresh Page</button></div>
 <div class="review-queue">
 <p class="account-help">Staff flags do not alter personnel records. Administrators review each report and decide whether the record requires correction or no change.</p>
 <div id="reviewQueueList"></div>
@@ -3437,6 +3447,22 @@ async function exitRegistry() {
    TAB SYSTEM
    ========================================================= */
 
+async function refreshRegistrySection(tabName) {
+    // Read-only refresh; keep the current tab and authenticated session in place.
+    const ok = await loadRegistryCoreDataFromSupabase({allowMigration: false});
+    if(!ok) {
+        alert("Could not refresh registry data from Supabase. Existing displayed data was retained.");
+        return;
+    }
+    if(tabName === "review" && userRole === "staff") {
+        await loadReviewQueueFromSupabase({silent: false});
+    }
+    renderEverything();
+    if(selectedPerson && personnel.some(p => String(p.id) === String(selectedPerson))) {
+        openPassport(selectedPerson);
+    }
+}
+
 async function openTab(tabName,button) {
     if(tabName === "founderAccounts") {
         if(userRole !== "staff" || staffRole !== "admin" || currentStaffProfile?.is_founder !== true) return;
@@ -4228,6 +4254,24 @@ function renderPersonnel() {
 
     }
 
+
+    // Counts reflect the current filtered set, not all registry personnel.
+    const rankGroups = [
+        ["Tsar", ["Tsar"]],
+        ["General", ["Nachal'nik General'nogo Shtaba", "General-Feld'marshal", "General-Leytenant", "General-Mayor"]],
+        ["Adjudant", ["General-Ad'yudant", "Fligel'-Ad'yudant", "Nachal'nik Shtaba Korpusa", "Ad'yudant", "General-Kvartimeyster", "Ober-Ofitser Kvartimeyster", "Kolonnovozhatiy"]],
+        ["Officer", ["Polkovnik", "Podpolkovnik", "Mayor", "Kapitan", "Shtabs-Kapitan", "Poruchik", "Podporuchik", "Praporschik"]],
+        ["Personnel", ["Feld'febel'", "Portupey-Praporschik", "Podpraporschik", "Mladshiy Unter-Ofitser", "Starshiy Ryadovoy", "Mladshiy Ryadovoy", "Rekrut"]]
+    ];
+    const breakdown = document.getElementById("personnelRankBreakdown");
+    if(breakdown) {
+        breakdown.innerHTML = rankGroups.map(([name, ranks]) => {
+            const count = filtered.filter(person => ranks.some(rank =>
+                normalizeRobloxUsername(rank) === normalizeRobloxUsername(person.rank || "")
+            )).length;
+            return count ? `<div>${count} ${name}${name === "Tsar" || count === 1 ? "" : "s"}</div>` : "";
+        }).join("");
+    }
 
     list.innerHTML =
     filtered.length
@@ -7409,7 +7453,8 @@ function toggleRobloxGroupPermission(personID) {
 }
 
 const QUICK_RANKS = [
-    "Nachal'nik General'novo Shtaba",
+    "Tsar",
+    "Nachal'nik General'nogo Shtaba",
     "General-Feld'marshal",
     "General-Leytenant",
     "General-Mayor",
@@ -9439,6 +9484,26 @@ async function submitRecordFlag(){
     }
 }
 
+function openFlaggedPersonnelProfile(personId) {
+    const person = personnel.find(item => String(item.id) === String(personId));
+    if(!person) {
+        alert("This personnel profile could not be found in the current registry data.");
+        return;
+    }
+    const category = document.getElementById("personnelSearchCategory");
+    const value = document.getElementById("personnelSearchValue");
+    const search = document.getElementById("searchBox");
+    if(category) category.value = "username";
+    updatePersonnelSearchControls();
+    if(value) value.value = "";
+    if(search) search.value = "";
+    renderPersonnel();
+    const tabButton = document.querySelector('button[onclick="openTab(\'personnel\',this)"]');
+    if(tabButton) openTab("personnel", tabButton);
+    openPassport(person.id);
+    document.getElementById("personnelTab")?.scrollIntoView({behavior:"smooth", block:"start"});
+}
+
 function renderReviewQueue(){
     const box = document.getElementById("reviewQueueList");
     if(!box) return;
@@ -9474,6 +9539,9 @@ function renderReviewQueue(){
             </div>
 
             <div class="review-note">${escapeHTML(f.reason)}</div>
+            <div class="review-profile-link-row">
+                <button type="button" class="secondary-btn" onclick="openFlaggedPersonnelProfile('${escapeJS(f.personId)}')">Open Profile</button>
+            </div>
 
             ${
                 f.status === "open" && staffRole === "admin"
@@ -9481,11 +9549,11 @@ function renderReviewQueue(){
                 `<div class="review-actions">
                     <button class="secondary-btn"
                         onclick="resolveRecordFlag('${escapeJS(f.id)}','no_change')">
-                        Resolve — No Change
+                        Review Checked. No Actions Required
                     </button>
                     <button class="primary-btn"
                         onclick="resolveRecordFlag('${escapeJS(f.id)}','correction_required')">
-                        Mark — Correction Required
+                        Correction Required. Actions Carried Out.
                     </button>
                 </div>`
                 :
