@@ -8189,8 +8189,16 @@ function updateQuickRecorder() {
             personCurrentlyHasRank(exact)
         ) {
 
-            warningBox.textContent =
-            "User currently possesses this exact rank.";
+            const underlyingRank = document.getElementById("quickSecondaryRank").value;
+            const selectedRank = QUICK_APPOINTMENT_RANKS.includes(action.value)
+                ? action.value + " - " + underlyingRank
+                : action.value;
+            const isExactRank = normalizeRobloxUsername(exact.rank) ===
+                normalizeRobloxUsername(selectedRank);
+
+            warningBox.textContent = isExactRank
+                ? "User currently possesses this exact rank"
+                : "User has already possessed a rank";
 
             warningBox.classList.add("warning");
 
