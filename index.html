@@ -4265,9 +4265,19 @@ function renderPersonnel() {
 
     }).sort((a, b) => {
         // QUICK_RANKS is ordered from highest to lowest in Staff Desk.
-        const rankPosition = person => getRegistryRankPosition(person.rank);
-        return rankPosition(a) - rankPosition(b) ||
-            String(a.username || "").localeCompare(String(b.username || ""), undefined, { sensitivity: "base" });
+        // Appointment ranks retain their own position relative to ordinary ranks.
+        // Only compare substantive ranks when BOTH people hold one of the six
+        // appointment ranks in the same appointment hierarchy group.
+        const aPosition = getRegistryRankPosition(a.rank);
+        const bPosition = getRegistryRankPosition(b.rank);
+        if(aPosition !== bPosition) return aPosition - bPosition;
+        const aParts = splitRegistryRank(a.rank);
+        const bParts = splitRegistryRank(b.rank);
+        if(isGroupedAppointmentRank(aParts.appointment) && isGroupedAppointmentRank(bParts.appointment)) {
+            const difference = getSubstantiveRankPosition(aParts.substantive) - getSubstantiveRankPosition(bParts.substantive);
+            if(difference !== 0) return difference;
+        }
+        return String(a.username || "").localeCompare(String(b.username || ""), undefined, { sensitivity: "base" });
     });
 
 
@@ -4443,15 +4453,6 @@ function getLinkedPersonnelStatus(person) {
 
 function ensureServiceCollections(person) {
 
-    if(enteredRobloxId) {
-        const existingId = String(person.robloxId || "").trim();
-        if(existingId && existingId !== enteredRobloxId) {
-            warningBox.textContent = "This user already has a different Roblox ID. Update it from the Personnel profile instead.";
-            warningBox.classList.add("warning");
-            return;
-        }
-        person.robloxId = enteredRobloxId;
-    }
     if(!Array.isArray(person.medals)) person.medals = [];
     if(!Array.isArray(person.rankHistory)) person.rankHistory = [];
     if(!Array.isArray(person.titleHistory)) person.titleHistory = [];
@@ -7684,10 +7685,27 @@ function splitRegistryRank(rank) {
     }
     return {appointment:"", substantive:raw};
 }
-function getRegistryRankPosition(rank) {
-    const value = splitRegistryRank(rank).substantive;
-    const index = QUICK_RANKS.findIndex(item => normalizeRobloxUsername(item) === normalizeRobloxUsername(value));
+// These six appointments form a distinct hierarchy block. The substantive
+// rank orders officers INSIDE this block only; it never changes the block's
+// position relative to ordinary military ranks.
+const GROUPED_APPOINTMENT_RANKS = [
+    "Fligel'-Ad'yudant", "Nachal'nik Shtaba Korpusa", "Ad'yudant",
+    "General-Kvartimeyster", "Ober-Ofitser Kvartimeyster", "Kolonnovozhatiy"
+];
+function isGroupedAppointmentRank(rank) {
+    return GROUPED_APPOINTMENT_RANKS.some(item => normalizeRobloxUsername(item) === normalizeRobloxUsername(rank));
+}
+function getSubstantiveRankPosition(rank) {
+    const index = QUICK_RANKS.findIndex(item => normalizeRobloxUsername(item) === normalizeRobloxUsername(rank));
     return index < 0 ? QUICK_RANKS.length : index;
+}
+function getRegistryRankPosition(rank) {
+    const parts = splitRegistryRank(rank);
+    // Keep the Chief of General Staff's established exceptional position.
+    if(isGroupedAppointmentRank(parts.appointment)) {
+        return QUICK_RANKS.indexOf("Fligel'-Ad'yudant");
+    }
+    return getSubstantiveRankPosition(parts.appointment || parts.substantive);
 }
 function syncQuickSecondaryRank() {
     const action = parseQuickAction();
@@ -8405,6 +8423,13 @@ function submitQuickRecord() {
 
     }
 
+    if(enteredRobloxId && person && String(person.robloxId || "").trim()
+        && String(person.robloxId).trim() !== enteredRobloxId) {
+        warningBox.textContent = "This user already has a different Roblox ID. Update it from the Personnel profile instead.";
+        warningBox.classList.add("warning");
+        return;
+    }
+
     if(!person) {
 
         person = {
@@ -8428,6 +8453,8 @@ function submitQuickRecord() {
         createdNew = true;
 
     }
+
+    if(enteredRobloxId) person.robloxId = enteredRobloxId;
 
     if(!Array.isArray(person.medals)) person.medals = [];
     if(!Array.isArray(person.rankHistory)) person.rankHistory = [];
