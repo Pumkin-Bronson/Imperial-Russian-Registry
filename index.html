@@ -1734,6 +1734,59 @@ th {
         grid-template-columns: 1fr;
     }
 }
+
+/* Personnel profile: wider record and contained controls. */
+@media (min-width: 901px) {
+    #personnelTab .registry-layout {
+        grid-template-columns: minmax(175px, 215px) minmax(0, 1fr);
+        gap: 16px;
+    }
+}
+.passport { padding: 24px; min-width: 0; }
+@media (min-width: 1051px) {
+    .service-record-layout {
+        grid-template-columns: minmax(0, .74fr) minmax(0, 1.26fr);
+    }
+    .service-history-panel { padding-right: 18px; }
+    .service-profile-panel { padding-left: 22px; }
+    .service-identity-row {
+        grid-template-columns: minmax(0, 30%) minmax(0, 1fr);
+        gap: 14px;
+    }
+}
+.service-history-entry.has-history-actions { padding-right: 62px; }
+.service-history-entry .service-history-actions {
+    position: absolute;
+    top: 12px;
+    right: 0;
+    margin: 0;
+    gap: 4px;
+    flex-wrap: nowrap;
+}
+.service-history-actions .service-history-delete-btn {
+    display: grid;
+    place-items: center;
+    width: 27px;
+    height: 27px;
+    padding: 0;
+    flex: 0 0 27px;
+    font-size: 16px;
+    line-height: 1;
+}
+.service-history-delete-btn svg { width: 15px; height: 15px; }
+.service-field-box, .service-current-box, .service-honours-box { min-width: 0; }
+.service-field-box > strong { display: block; }
+.service-field-box > .service-save-id { display: block; margin-top: 7px; }
+.service-profile-panel button {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    height: auto;
+}
+.service-field-box .service-save-id { font-size: 12px; padding: 7px 10px; }
+.service-id-fields input { min-width: 0; max-width: 100%; }
+.roblox-permission-controls > * { min-width: 0; }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -6172,7 +6225,7 @@ function serviceHistorySortValue(dateText) {
     sortedServiceHistory
     .map(event => `
 
-        <div class="service-history-entry">
+        <div class="service-history-entry${userRole === "staff" && event.historyId ? " has-history-actions" : ""}">
 
             <strong>
             ${escapeHTML(formatServiceHistoryDate(event.date))}
@@ -6209,18 +6262,19 @@ function serviceHistorySortValue(dateText) {
                 ?
                 `
                 <div class="service-history-actions">
-                <button class="service-history-delete-btn" type="button" onclick="openFlagRecordDialog('${escapeJS(person.id)}','service_history','${escapeJS(event.type + " — " + event.label)}','${escapeJS(event.historyId || "")}')">Flag</button>
+                <button class="service-history-delete-btn" type="button" onclick="openFlagRecordDialog('${escapeJS(person.id)}','service_history','${escapeJS(event.type + " — " + event.label)}','${escapeJS(event.historyId || "")}')" title="Flag" aria-label="Flag service history entry">&#9873;</button>
                 ${staffRole === "admin" ? `
                 <button
                 class="service-history-delete-btn"
                 type="button"
+                title="Remove" aria-label="Remove service history entry"
                 onclick="requestServiceHistoryRemoval(
                     '${escapeJS(person.id)}',
                     '${escapeJS(event.historyId)}',
                     '${escapeJS(event.type)}',
                     '${escapeJS(event.label)}'
                 )">
-                Remove
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>
                 </button>` : ""}
                 </div>
                 `
@@ -6572,7 +6626,7 @@ async function exportRegistryElementPNG(element, name, {sheet = false} = {}){
         clone.style.display = "block";
         clone.querySelectorAll("th,td").forEach(el => {el.style.position="static";el.style.boxShadow="none";});
     } else {
-        clone.style.width = Math.max(900,element.getBoundingClientRect().width) + "px";
+        clone.style.width = Math.max(1100,element.getBoundingClientRect().width) + "px";
         clone.querySelectorAll("button,select,textarea").forEach(el => el.remove());
         clone.querySelectorAll("input").forEach(input => {
             const label = document.createElement("strong");
