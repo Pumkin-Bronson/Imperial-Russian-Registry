@@ -1787,6 +1787,20 @@ th {
 .service-id-fields input { min-width: 0; max-width: 100%; }
 .roblox-permission-controls > * { min-width: 0; }
 
+
+/* Shared refresh and responsive text containment. */
+.header-right { flex-wrap: wrap; justify-content: flex-end; }
+.header-right .section-refresh-btn { margin: 0; padding: 6px 10px; font: bold 12px Arial,sans-serif; }
+#personnelTab .personnel-view-toolbar { align-items: center; flex-wrap: wrap; margin-left: 231px; }
+#personnelTab .personnel-rank-breakdown { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 4px 12px; text-align: left; white-space: normal; }
+#personnelTab .personnel-view-btn { flex-shrink: 0; }
+@media(max-width:900px) { #personnelTab .personnel-view-toolbar { margin-left: 0; } }
+#registryPage :where(.person-card,.service-field-box,.service-current-box,.service-honours-box,.admin-card,.review-card,.account-row,.unit-roster-section-header,.update-entry,.audit-entry,td,th) { overflow-wrap: anywhere; min-width: 0; }
+#registryPage :where(.service-field-box,.service-current-box,.service-honours-box,.person-card) { height: auto; }
+#registryPage :where(button:not(.performance-toggle):not(.quick-id-toggle):not(.service-history-delete-btn):not(.profile-export-btn):not(.sheet-export-btn):not(.review-delete-btn)) { overflow-wrap: anywhere; white-space: normal; max-width: 100%; }
+#personnelTab .personnel-search-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1.5fr); flex-basis: 620px; }
+@media(max-width:900px) { #personnelTab .personnel-search-controls { grid-template-columns: 1fr; flex-basis: 100%; } }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -1939,6 +1953,7 @@ Imperial Personnel Registry
 </div>
 
 <div class="header-right">
+<button type="button" class="secondary-btn section-refresh-btn" onclick="refreshRegistrySection()">Refresh Page</button>
 
 <span id="roleBadge" class="role-badge">
 Guest
@@ -2009,7 +2024,7 @@ CENTRAL REGISTER
 <h2>Personnel</h2>
 
 </div>
-<button type="button" class="secondary-btn section-refresh-btn" onclick="refreshRegistrySection('personnel')">Refresh Page</button>
+
 
 <div
 id="personnelResultCount"
@@ -2018,7 +2033,6 @@ aria-live="polite">
 0 MATCHED RESULTS
 </div>
 
-<div id="personnelRankBreakdown" class="personnel-rank-breakdown" aria-live="polite"></div>
 <div class="personnel-search-controls">
 
 <select
@@ -2050,6 +2064,7 @@ oninput="renderPersonnel()">
 
 
 <div class="personnel-view-toolbar">
+<div id="personnelRankBreakdown" class="personnel-rank-breakdown" aria-live="polite"></div>
 <button id="personnelCardsViewBtn" class="personnel-view-btn active" type="button" onclick="setPersonnelViewMode('cards')">Record View</button>
 <button id="personnelSheetViewBtn" class="personnel-view-btn" type="button" onclick="setPersonnelViewMode('sheet')">Spreadsheet View</button>
 <button id="personnelSheetDownloadBtn" class="personnel-view-btn sheet-export-btn hidden" type="button" title="Download full spreadsheet as image" aria-label="Download full spreadsheet as image" onclick="downloadPersonnelSpreadsheetImage()">&#x2913;</button>
@@ -2097,7 +2112,7 @@ IMPERIAL FORMATIONS
 <h2>Regiment / Unit Roster</h2>
 
 </div>
-<button type="button" class="secondary-btn section-refresh-btn" onclick="refreshRegistrySection('ranks')">Refresh Page</button>
+
 
 </div>
 
@@ -2632,7 +2647,7 @@ The selected date and note will be stored with the rank, medal or title record.
 
 <!-- ADMIN REVIEW QUEUE -->
 <section id="reviewTab" class="tab-content staff-review-only hidden">
-<div class="section-header"><div><div class="small-title">INTERNAL VERIFICATION</div><h2>Flagged Records / Review Queue</h2></div><button type="button" class="secondary-btn section-refresh-btn" onclick="refreshRegistrySection('review')">Refresh Page</button></div>
+<div class="section-header"><div><div class="small-title">INTERNAL VERIFICATION</div><h2>Flagged Records / Review Queue</h2></div></div>
 <div class="review-queue">
 <p class="account-help">Staff flags do not alter personnel records. Administrators review each report and decide whether the record requires correction or no change.</p>
 <div id="reviewQueueList"></div>
@@ -3286,7 +3301,7 @@ async function verifyStaffMfa() {
         status.textContent = "Authenticator code was not accepted. Please check the code and try again.";
     }
 }
-async function completeStaffLogin(resolvedProfile) {
+async function completeStaffLogin(resolvedProfile, allowMigration = true) {
     const {data: userData, error: userError} = await supabaseClient.auth.getUser();
     if(userError || !userData?.user || userData.user.id !== resolvedProfile.id) {
         await supabaseClient.auth.signOut({scope:"local"});
@@ -3303,7 +3318,7 @@ async function completeStaffLogin(resolvedProfile) {
     document.getElementById("founderAccountsTabButton")?.classList.toggle("hidden", resolvedProfile.is_founder !== true || staffRole !== "admin");
     showPage("registryPage");
     startStaffInactivity();
-    await loadRegistryCoreDataFromSupabase({allowMigration: true});
+    await loadRegistryCoreDataFromSupabase({allowMigration});
     await loadReviewQueueFromSupabase({silent: true});
     renderEverything();
     await loadRegistryUpdatesFromSupabase();
@@ -3581,20 +3596,22 @@ async function exitRegistry() {
    TAB SYSTEM
    ========================================================= */
 
-async function refreshRegistrySection(tabName) {
-    // Read-only refresh; keep the current tab and authenticated session in place.
-    const ok = await loadRegistryCoreDataFromSupabase({allowMigration: false});
-    if(!ok) {
-        alert("Could not refresh registry data from Supabase. Existing displayed data was retained.");
+async function refreshRegistrySection() {
+    // A single-use, same-tab continuation; never stores credentials or grants access.
+    if(userRole !== "staff" && userRole !== "guest") return;
+    if(userRole === "staff" && Date.now() - staffLastActivity >= STAFF_INACTIVITY_MS) {
+        await exitRegistry();
+        openStaffLogin();
         return;
     }
-    if(tabName === "review" && userRole === "staff") {
-        await loadReviewQueueFromSupabase({silent: false});
-    }
-    renderEverything();
-    if(selectedPerson && personnel.some(p => String(p.id) === String(selectedPerson))) {
-        openPassport(selectedPerson);
-    }
+    sessionStorage.setItem("vam-explicit-refresh", JSON.stringify({
+        role: userRole, id: currentStaffProfile?.id || null,
+        tab: document.querySelector(".tab-content.active")?.id || "personnelTab",
+        view: personnelViewMode, person: selectedPerson, at: Date.now()
+    }));
+    const url = new URL(window.location.href);
+    url.searchParams.set("_vam_refresh", String(Date.now()));
+    window.location.replace(url.href);
 }
 
 async function openTab(tabName,button) {
@@ -10735,18 +10752,53 @@ function renderEverything() {
    ========================================================= */
 
 async function restoreStaffSession() {
-    // Each new page session requires a fresh password and authenticator code.
-    // Do not trust a previously persisted Supabase session for Staff/Admin access.
+    // Only an explicit registry refresh can resume an existing authenticated session.
+    let continuation = null;
+    try { continuation = JSON.parse(sessionStorage.getItem("vam-explicit-refresh") || "null"); }
+    catch(error) { console.error("Refresh state invalid", error); }
+    sessionStorage.removeItem("vam-explicit-refresh");
+    const url = new URL(window.location.href);
+    const refreshStamp = url.searchParams.get("_vam_refresh");
+    if(refreshStamp) {
+        url.searchParams.delete("_vam_refresh");
+        history.replaceState(history.state, "", url.href);
+    }
     const {data: {session}, error} = await supabaseClient.auth.getSession();
     if(error) console.error("Session check failed", error);
+    if(continuation && refreshStamp && Date.now() - continuation.at >= 0 && Date.now() - continuation.at < 120000) {
+        try {
+            if(continuation.role === "guest") {
+                await enterGuest();
+            } else if(continuation.role === "staff" && session && session.user.id === continuation.id) {
+                const {data: userData, error: userError} = await supabaseClient.auth.getUser();
+                const {data: assurance, error: assuranceError} = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
+                const {data: permitted, error: accessError} = await supabaseClient.rpc("registry_mfa_access_ok");
+                if(userError || userData?.user?.id !== continuation.id || assuranceError || assurance?.currentLevel !== "aal2" || accessError || permitted !== true) throw new Error("Staff access not confirmed");
+                const {data: profile, error: profileError} = await supabaseClient.from("staff_profiles").select("id, account_name, display_name, role, active, is_founder").eq("id", continuation.id).maybeSingle();
+                if(profileError || profile?.active !== true) throw new Error("Staff profile not authorised");
+                await completeStaffLogin(profile, false);
+            }
+            if(userRole === continuation.role) {
+                const tab = String(continuation.tab).replace(/Tab$/, "");
+                const button = [...document.querySelectorAll(".tab-button")].find(b => b.getAttribute("onclick") === "openTab('" + tab + "',this)");
+                if(button && !button.classList.contains("hidden")) await openTab(tab, button);
+                setPersonnelViewMode(continuation.view);
+                if(continuation.person && personnel.some(p => String(p.id) === String(continuation.person))) openPassport(continuation.person);
+                setPersonnelViewMode(continuation.view);
+                return;
+            }
+        } catch(error) { console.error("Registry refresh continuation failed", error); }
+    }
+    // Ordinary page loads retain the existing fresh-password/MFA policy.
     if(session) await supabaseClient.auth.signOut();
     currentStaffProfile = null;
     userRole = null;
     staffName = null;
     staffRole = null;
     stopStaffInactivity();
+    configurePermissions();
+    showPage("entryPage");
 }
-
 
 
 renderEverything();
