@@ -503,7 +503,7 @@ main {
 
 .service-record-layout {
     display: grid;
-    grid-template-columns: minmax(290px, .72fr) minmax(520px, 1.28fr);
+    grid-template-columns: minmax(0, .72fr) minmax(0, 1.28fr);
     gap: 0;
     min-height: 640px;
 }
@@ -551,13 +551,18 @@ main {
 
 .service-history-entry {
     position: relative;
-    padding-right: 82px;
+    overflow-wrap: anywhere;
+}
+
+.service-history-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
 }
 
 .service-history-delete-btn {
-    position: absolute;
-    top: 9px;
-    right: 0;
     border: 1px solid #9d7777;
     background: #fff8f6;
     color: var(--dark-red);
@@ -600,13 +605,14 @@ main {
 
 .service-identity-row {
     display: grid;
-    grid-template-columns: 180px 1fr;
+    grid-template-columns: minmax(0, 180px) minmax(0, 1fr);
     gap: 18px;
     align-items: center;
 }
 
 .roblox-avatar-frame {
-    width: 180px;
+    width: 100%;
+    max-width: 180px;
     height: 210px;
     border: 2px solid #424750;
     border-radius: 10px;
@@ -628,6 +634,8 @@ main {
 }
 
 .service-id-fields {
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
     display: grid;
     gap: 12px;
 }
@@ -649,6 +657,7 @@ main {
 }
 
 .service-field-box strong {
+    overflow-wrap: anywhere;
     font-size: 16px;
 }
 
@@ -675,7 +684,7 @@ main {
 
 .service-current-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 12px 16px;
 }
 
@@ -697,6 +706,7 @@ main {
 }
 
 .service-current-box strong {
+    overflow-wrap: anywhere;
     display: block;
 }
 
@@ -838,6 +848,7 @@ main {
 
     .roblox-avatar-frame {
         width: 100%;
+        max-width: none;
         height: 260px;
     }
 }
@@ -1520,6 +1531,7 @@ th {
 .profile-last-edited{margin-top:24px;text-align:right;color:var(--muted);font:11px Arial,sans-serif}
 .profile-exporting button,.profile-exporting input,.profile-exporting textarea,.profile-exporting select,.profile-exporting .profile-review-status{display:none!important}
 .profile-exporting .service-history-entry{padding-right:0!important}
+.profile-exporting .service-history-actions{display:none!important}
 .profile-exporting .service-id-fields input{display:block!important;border:0;background:transparent}
 .profile-exporting .profile-export-btn{display:none!important}
 .sheet-export-btn{width:35px;height:33px;padding:0;font-size:19px}
@@ -6171,6 +6183,8 @@ function serviceHistorySortValue(dateText) {
                 event.historyId
                 ?
                 `
+                <div class="service-history-actions">
+                <button class="service-history-delete-btn" type="button" onclick="openFlagRecordDialog('${escapeJS(person.id)}','service_history','${escapeJS(event.type + " — " + event.label)}','${escapeJS(event.historyId || "")}')">Flag</button>
                 ${staffRole === "admin" ? `
                 <button
                 class="service-history-delete-btn"
@@ -6183,7 +6197,7 @@ function serviceHistorySortValue(dateText) {
                 )">
                 Remove
                 </button>` : ""}
-                <button class="service-history-delete-btn" style="right:${staffRole === "admin" ? "62px" : "0"};" type="button" onclick="openFlagRecordDialog('${escapeJS(person.id)}','service_history','${escapeJS(event.type + " — " + event.label)}','${escapeJS(event.historyId || "")}')">Flag</button>
+                </div>
                 `
                 :
                 ""
