@@ -1825,7 +1825,7 @@ th {
 
 /* Expanded personnel profile only — reference certificate palette and ruling.
    No layout dimensions, spacing, controls or record contents are altered. */
-#passportPanel:has(.service-record-layout) {
+:is(#passportPanel, .certificate-profile-export):has(.service-record-layout) {
     background-color: #f3ebd7;
     border-color: #8b7348;
     border-radius: 0;
@@ -1834,7 +1834,7 @@ th {
     font-family: Georgia, "Times New Roman", serif;
 }
 /* Draw diamonds above the inset rules without capturing clicks. */
-#passportPanel:has(.service-record-layout)::before {
+:is(#passportPanel, .certificate-profile-export):has(.service-record-layout)::before {
     content: "";
     position: absolute;
     inset: 0;
@@ -1843,49 +1843,71 @@ th {
     background-position: left 16px top 16px, right 16px top 16px, left 16px bottom 16px, right 16px bottom 16px;
     background-repeat: no-repeat;
 }
-#passportPanel .service-history-panel,
-#passportPanel .service-history-panel h2,
-#passportPanel .service-details-divider { border-color: #8b7348; }
-#passportPanel .service-history-panel h2,
-#passportPanel .service-honours-box h3 { color: #30271e; font-weight: normal; }
-#passportPanel .service-history-section h3 { color: #761c25; }
-#passportPanel .service-history-entry,
-#passportPanel .service-honour-row { border-color: #b9aa8b; }
-#passportPanel .service-history-entry,
-#passportPanel .service-field-box small,
-#passportPanel .service-current-box small,
-#passportPanel .person-meta,
-#passportPanel .record-id,
-#passportPanel .profile-last-edited { font-family: Georgia, "Times New Roman", serif; }
-#passportPanel .service-field-box small,
-#passportPanel .service-current-box small,
-#passportPanel .person-meta,
-#passportPanel .profile-last-edited { color: #75664e; }
-#passportPanel .service-field-box small { text-transform: uppercase; letter-spacing: .6px; }
-#passportPanel .record-id { color: #761c25; letter-spacing: 1.5px; }
-#passportPanel .roblox-avatar-frame {
+:is(#passportPanel, .certificate-profile-export) .service-history-panel,
+:is(#passportPanel, .certificate-profile-export) .service-history-panel h2,
+:is(#passportPanel, .certificate-profile-export) .service-details-divider { border-color: #8b7348; }
+:is(#passportPanel, .certificate-profile-export) .service-history-panel h2,
+:is(#passportPanel, .certificate-profile-export) .service-honours-box h3 { color: #30271e; font-weight: normal; }
+:is(#passportPanel, .certificate-profile-export) .service-history-section h3 { color: #761c25; }
+:is(#passportPanel, .certificate-profile-export) .service-history-entry,
+:is(#passportPanel, .certificate-profile-export) .service-honour-row { border-color: #b9aa8b; }
+:is(#passportPanel, .certificate-profile-export) .service-history-entry,
+:is(#passportPanel, .certificate-profile-export) .service-field-box small,
+:is(#passportPanel, .certificate-profile-export) .service-current-box small,
+:is(#passportPanel, .certificate-profile-export) .person-meta,
+:is(#passportPanel, .certificate-profile-export) .record-id,
+:is(#passportPanel, .certificate-profile-export) .profile-last-edited { font-family: Georgia, "Times New Roman", serif; }
+:is(#passportPanel, .certificate-profile-export) .service-field-box small,
+:is(#passportPanel, .certificate-profile-export) .service-current-box small,
+:is(#passportPanel, .certificate-profile-export) .person-meta,
+:is(#passportPanel, .certificate-profile-export) .profile-last-edited { color: #75664e; }
+:is(#passportPanel, .certificate-profile-export) .service-field-box small { text-transform: uppercase; letter-spacing: .6px; }
+:is(#passportPanel, .certificate-profile-export) .record-id { color: #761c25; letter-spacing: 1.5px; }
+:is(#passportPanel, .certificate-profile-export) .roblox-avatar-frame {
     border-color: #8b7348;
     border-radius: 0;
     background: #e3dac5;
     outline: 1px solid #8b7348;
     outline-offset: -5px;
 }
-#passportPanel .service-field-box {
+:is(#passportPanel, .certificate-profile-export) .service-field-box {
     border-color: transparent transparent #8b7348;
     border-radius: 0;
     background: transparent;
 }
-#passportPanel .service-current-box {
+:is(#passportPanel, .certificate-profile-export) .service-current-box {
     border-color: #8b7348;
     border-radius: 0;
     background: transparent;
 }
-#passportPanel .service-honours-box {
+:is(#passportPanel, .certificate-profile-export) .service-honours-box {
     border-color: transparent;
     border-radius: 0;
     background: transparent;
 }
-#passportPanel .service-honours-box h3 { border-bottom: 1px solid #8b7348; }
+:is(#passportPanel, .certificate-profile-export) .service-honours-box h3 { border-bottom: 1px solid #8b7348; }
+
+/* PNG renderer: physical borders reproduce the certificate's inset rules. */
+.certificate-profile-export { box-shadow: none !important; }
+.certificate-profile-export::before { display: none !important; }
+.certificate-profile-export .certificate-export-rule,
+.certificate-profile-export .certificate-export-corner,
+.certificate-profile-export .certificate-export-portrait-rule {
+    position: absolute;
+    pointer-events: none;
+}
+.certificate-profile-export .certificate-export-rule,
+.certificate-profile-export .certificate-export-portrait-rule {
+    border: 1px solid #8b7348;
+}
+.certificate-profile-export .certificate-export-corner {
+    width: 8px;
+    height: 8px;
+    background: #8b7348;
+    transform: rotate(45deg);
+}
+.certificate-profile-export .roblox-avatar-frame { position: relative; outline: none; }
+.certificate-profile-export .certificate-export-portrait-rule { inset: 3px; z-index: 1; }
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -6729,6 +6751,29 @@ async function exportRegistryElementPNG(element, name, {sheet = false} = {}){
         clone.style.display = "block";
         clone.querySelectorAll("th,td").forEach(el => {el.style.position="static";el.style.boxShadow="none";});
     } else {
+        clone.classList.add("certificate-profile-export");
+        // Use real border elements because html2canvas does not render inset shadows reliably.
+        for (const inset of [7, 13]) {
+            const rule = document.createElement("div");
+            rule.className = "certificate-export-rule";
+            rule.style.inset = inset + "px";
+            clone.appendChild(rule);
+        }
+        for (const vertical of ["top", "bottom"]) {
+            for (const horizontal of ["left", "right"]) {
+                const corner = document.createElement("div");
+                corner.className = "certificate-export-corner";
+                corner.style[vertical] = "17px";
+                corner.style[horizontal] = "17px";
+                clone.appendChild(corner);
+            }
+        }
+        const portrait = clone.querySelector(".roblox-avatar-frame");
+        if (portrait) {
+            const rule = document.createElement("div");
+            rule.className = "certificate-export-portrait-rule";
+            portrait.appendChild(rule);
+        }
         clone.style.width = Math.max(1100,element.getBoundingClientRect().width) + "px";
         clone.querySelectorAll("button,select,textarea").forEach(el => el.remove());
         clone.querySelectorAll("input").forEach(input => {
@@ -6740,12 +6785,12 @@ async function exportRegistryElementPNG(element, name, {sheet = false} = {}){
     }
     document.body.appendChild(clone);
     try {
-        const width = Math.ceil(clone.scrollWidth);
-        const height = Math.ceil(clone.scrollHeight);
+        const width = Math.ceil(sheet ? clone.scrollWidth : Math.max(clone.scrollWidth, clone.offsetWidth));
+        const height = Math.ceil(sheet ? clone.scrollHeight : Math.max(clone.scrollHeight, clone.offsetHeight));
         /* Browser canvas limits vary; reduce scale for very large matrices. */
         const scale = Math.min(2, 16000/Math.max(width,height), Math.sqrt(60000000/(width*height)));
         if(scale <= 0 || !Number.isFinite(scale)) throw new Error("Invalid export dimensions");
-        const canvas = await html2canvas(clone,{backgroundColor:"#fffaf0",useCORS:true,allowTaint:false,scale, width,height,windowWidth:Math.max(window.innerWidth,width),scrollX:0,scrollY:0,logging:false});
+        const canvas = await html2canvas(clone,{backgroundColor:sheet ? "#fffaf0" : "#f3ebd7",useCORS:true,allowTaint:false,scale, width,height,windowWidth:Math.max(window.innerWidth,width),scrollX:0,scrollY:0,logging:false});
         const url = canvas.toDataURL("image/png");
         const link = document.createElement("a");link.href=url;link.download=name+".png";
         document.body.appendChild(link);link.click();link.remove();
