@@ -591,9 +591,10 @@ main {
     margin-bottom: 14px;
 }
 
-.service-eagle svg {
+.service-eagle img {
     width: 128px;
     height: 128px;
+    object-fit: contain;
     display: block;
 }
 
@@ -4372,39 +4373,7 @@ function renderPersonnel() {
    ========================================================= */
 
 function imperialEagleSVG() {
-
-    /*
-       Stylised transparent double-headed Imperial eagle.
-       It is inline SVG, so there is no white image background.
-    */
-    return `
-    <svg viewBox="0 0 220 220" aria-label="Imperial Russian eagle" role="img">
-        <g fill="#111">
-            <ellipse cx="110" cy="118" rx="28" ry="48"/>
-            <path d="M97 82 C70 56,42 52,26 62 C47 68,59 82,69 101 C49 88,30 88,17 98 C38 103,55 117,70 136 C48 128,29 133,19 146 C43 145,61 153,82 169 L95 138 Z"/>
-            <path d="M123 82 C150 56,178 52,194 62 C173 68,161 82,151 101 C171 88,190 88,203 98 C182 103,165 117,150 136 C172 128,191 133,201 146 C177 145,159 153,138 169 L125 138 Z"/>
-            <path d="M101 77 C88 65,76 54,72 40 C86 42,96 48,104 60 Z"/>
-            <path d="M119 77 C132 65,144 54,148 40 C134 42,124 48,116 60 Z"/>
-            <circle cx="74" cy="38" r="10"/>
-            <circle cx="146" cy="38" r="10"/>
-            <path d="M65 33 L54 25 L69 25 Z"/>
-            <path d="M155 33 L166 25 L151 25 Z"/>
-            <path d="M97 56 L110 37 L123 56 L118 58 L110 49 L102 58 Z"/>
-            <rect x="106" y="25" width="8" height="14"/>
-            <rect x="101" y="29" width="18" height="5"/>
-            <path d="M94 165 L78 196 L91 194 L103 176 Z"/>
-            <path d="M126 165 L142 196 L129 194 L117 176 Z"/>
-            <circle cx="76" cy="196" r="7"/>
-            <circle cx="144" cy="196" r="7"/>
-            <rect x="55" y="112" width="7" height="74" transform="rotate(-18 58 149)"/>
-            <circle cx="46" cy="105" r="8"/>
-            <rect x="158" y="112" width="7" height="74" transform="rotate(18 161 149)"/>
-            <circle cx="174" cy="181" r="11" fill="none" stroke="#111" stroke-width="6"/>
-            <rect x="107" y="98" width="6" height="54" fill="#f4ecd9"/>
-            <rect x="92" y="117" width="36" height="6" fill="#f4ecd9"/>
-        </g>
-    </svg>`;
-
+    return `<img src="./Monogram_Black.png" alt="Imperial Russian Monogram" width="128" height="128">`;
 }
 
 
