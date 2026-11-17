@@ -1709,6 +1709,31 @@ th {
 .quick-id-message{font:12px Arial,sans-serif;color:#2e6b38;margin-top:6px}
 #quickSecondaryRankWrap{margin-top:12px}
 #quickRobloxId:disabled{background:#eee8dc;color:var(--muted)}
+/* Personnel header and record share the same horizontal content edges. */
+#personnelTab > .section-header {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+}
+#personnelTab .personnel-search-controls {
+    flex: 1 1 450px;
+    min-width: 0;
+    grid-template-columns: minmax(0, 190fr) minmax(0, 260fr) minmax(0, 360fr);
+}
+#personnelTab .personnel-search-controls > * {
+    min-width: 0;
+    max-width: none;
+}
+#personnelTab .personnel-rank-breakdown {
+    white-space: nowrap;
+}
+@media (max-width: 900px) {
+    #personnelTab .personnel-search-controls {
+        flex-basis: 100%;
+        grid-template-columns: 1fr;
+    }
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
