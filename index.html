@@ -6512,7 +6512,7 @@ function serviceHistorySortValue(dateText) {
 
 
             <div class="record-id" style="text-align:center;margin-bottom:18px;">
-            IMPERIAL SERVICE RECORD ${escapeHTML(person.id)}
+            No. ${escapeHTML(person.id)}
             </div>
 
             ${userRole === "staff" ? `
@@ -6600,7 +6600,7 @@ function serviceHistorySortValue(dateText) {
                     <div class="service-field-box">
                         <small>Permission Holder in Roblox Group</small>
                         <div class="roblox-permission-controls">
-                            <strong aria-label="${isRobloxGroupPermissionHolder(person) ? "Enabled" : "Disabled"}">${isRobloxGroupPermissionHolder(person) ? "✓" : "✕"}</strong>
+                            <strong aria-label="${isRobloxGroupPermissionHolder(person) ? "Authorised" : "Not Authorised"}">${isRobloxGroupPermissionHolder(person) ? "✓ Authorised" : "✕ Not Authorised"}</strong>
                             ${isAbovePraporschik(person.rank) && userRole === "staff" ? `
                             <button class="secondary-btn service-save-id" type="button"
                                 onclick="toggleRobloxGroupPermission('${escapeJS(person.id)}')">
