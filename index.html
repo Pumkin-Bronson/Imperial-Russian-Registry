@@ -1801,6 +1801,27 @@ th {
 #personnelTab .personnel-search-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1.5fr); flex-basis: 620px; }
 @media(max-width:900px) { #personnelTab .personnel-search-controls { grid-template-columns: 1fr; flex-basis: 100%; } }
 
+/* Regiment roster: preserve complete words and usernames in both access layouts.
+   Allow the existing table container to scroll rather than compress columns. */
+#registryPage .unit-roster-section .table-container > table {
+    table-layout: auto;
+    width: 100%;
+    min-width: max-content;
+}
+#registryPage .unit-roster-section .table-container > table th,
+#registryPage .unit-roster-section .table-container > table td {
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
+}
+#registryPage .unit-roster-section .table-container > table th:nth-child(6),
+#registryPage .unit-roster-section .table-container > table td:nth-child(6),
+#registryPage .unit-roster-section .table-container > table th:nth-child(7),
+#registryPage .unit-roster-section .table-container > table td:nth-child(7) {
+    min-width: 90px;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
