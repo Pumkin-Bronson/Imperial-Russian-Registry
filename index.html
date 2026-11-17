@@ -1822,33 +1822,6 @@ th {
     min-width: 90px;
 }
 
-
-/* TEST: Imperial bilingual certificate appearance — profile only. */
-.passport:has(.service-record-layout) {
-    background-color: #f1e6ce;
-    background-image: radial-gradient(ellipse at center, rgba(255,251,234,.42), transparent 75%);
-    border-color: #8b7350;
-    color: #30271d;
-    box-shadow: inset 0 0 0 3px #e2d3b4, inset 0 0 0 4px #a68a60, 0 18px 45px rgba(0,0,0,.12);
-}
-.service-record-layout .service-history-panel,
-.service-record-layout .service-history-panel h2,
-.service-record-layout .service-details-divider { border-color: #756044; }
-.service-record-layout :is(.service-field-box,.service-current-box,.service-honours-box,.roblox-avatar-frame) {
-    border-color: #8b7350;
-    border-radius: 2px;
-    background-color: #faf3e3;
-}
-.service-record-layout :is(.service-history-entry,.service-honour-row) { border-color: #c6b28c; }
-.service-record-layout :is(.service-history-entry,.service-honour-row .person-meta,.service-field-box small,.service-current-box small,.record-id) {
-    font-family: Georgia, "Times New Roman", serif;
-}
-.service-record-layout :is(h2,h3,strong,.record-id) { text-shadow: .15px .2px 0 rgba(75,49,25,.22); }
-.service-record-layout .record-id { color: #761c25; }
-.service-record-layout .imperial-ru { font-style: normal; }
-.service-record-layout .imperial-en { font-size: .62em; font-style: italic; font-weight: normal; color: #756044; }
-.service-record-layout small .imperial-en { font-size: .9em; }
-.service-record-layout .record-id .imperial-en { font-size: .85em; letter-spacing: 0; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -6433,7 +6406,7 @@ function serviceHistorySortValue(dateText) {
 
         <section class="service-history-panel">
 
-            <h2><span class="imperial-ru" lang="ru">Служба</span> <span class="imperial-en" lang="en">· Service History</span></h2>
+            <h2>Service History</h2>
 
             <div class="service-history-section">
 
@@ -6452,7 +6425,7 @@ function serviceHistorySortValue(dateText) {
 
 
             <div class="record-id" style="text-align:center;margin-bottom:18px;">
-            <span class="imperial-ru" lang="ru">ПОСЛУЖНОЙ СПИСОКЪ</span> <span class="imperial-en" lang="en">· IMPERIAL SERVICE RECORD</span> ${escapeHTML(person.id)}
+            IMPERIAL SERVICE RECORD ${escapeHTML(person.id)}
             </div>
 
             ${userRole === "staff" ? `
@@ -6484,7 +6457,7 @@ function serviceHistorySortValue(dateText) {
 
                     <div class="service-field-box">
 
-                        <small><span class="imperial-ru" lang="ru">Имя Roblox</span> <span class="imperial-en" lang="en">· Roblox Username</span></small>
+                        <small>Roblox Username</small>
 
                         <strong>
                         @${escapeHTML(person.username || "")}
@@ -6507,7 +6480,7 @@ function serviceHistorySortValue(dateText) {
 
                     <div class="service-field-box">
 
-                        <small><span class="imperial-ru" lang="ru">№ Roblox</span> <span class="imperial-en" lang="en">· Roblox ID</span></small>
+                        <small>Roblox ID</small>
 
                         ${
                             userRole === "staff" && staffRole === "admin"
@@ -6538,7 +6511,7 @@ function serviceHistorySortValue(dateText) {
                     </div>
 
                     <div class="service-field-box">
-                        <small><span class="imperial-ru" lang="ru">Права въ группѣ Roblox</span> <span class="imperial-en" lang="en">· Permission Holder in Roblox Group</span></small>
+                        <small>Permission Holder in Roblox Group</small>
                         <div class="roblox-permission-controls">
                             <strong aria-label="${isRobloxGroupPermissionHolder(person) ? "Enabled" : "Disabled"}">${isRobloxGroupPermissionHolder(person) ? "✓" : "✕"}</strong>
                             ${isAbovePraporschik(person.rank) && userRole === "staff" ? `
@@ -6560,7 +6533,7 @@ function serviceHistorySortValue(dateText) {
 
                 <div class="service-current-box">
 
-                    <small><span class="imperial-ru" lang="ru">Чинъ</span> <span class="imperial-en" lang="en">· Current Rank</span></small>
+                    <small>Current Rank</small>
 
                     <strong>
                     ${escapeHTML(person.rank || "Unranked")}
@@ -6608,7 +6581,7 @@ function serviceHistorySortValue(dateText) {
 
                 <div class="service-current-box">
 
-                    <small><span class="imperial-ru" lang="ru">Состояніе на службѣ</span> <span class="imperial-en" lang="en">· Status (linked with unit)</span></small>
+                    <small>Status (linked with unit)</small>
 
                     <strong>
                     ${escapeHTML(linkedStatus)}
@@ -6619,7 +6592,7 @@ function serviceHistorySortValue(dateText) {
 
                 <div class="service-current-box">
 
-                    <small><span class="imperial-ru" lang="ru">Титулъ</span> <span class="imperial-en" lang="en">· Title</span></small>
+                    <small>Title</small>
                     <strong>${escapeHTML(person.title || "None")}</strong>
                     ${userRole === "staff" && staffRole === "admin" ? `
                         <div class="service-rank-actions">
@@ -6637,7 +6610,7 @@ function serviceHistorySortValue(dateText) {
 
                 <div class="service-current-box">
 
-                    <small><span class="imperial-ru" lang="ru">Полкъ / часть</span> <span class="imperial-en" lang="en">· Regiment / Unit</span></small>
+                    <small>Regiment / Unit</small>
 
                     <strong>
                     ${escapeHTML(person.unit || "Unassigned")}
@@ -6650,7 +6623,7 @@ function serviceHistorySortValue(dateText) {
 
             <div class="service-honours-box">
 
-                <h3><span class="imperial-ru" lang="ru">Ордена и медали</span> <span class="imperial-en" lang="en">· Decorations &amp; Honours</span></h3>
+                <h3>Decorations &amp; Honours</h3>
 
                 ${currentHonoursHTML}
 
