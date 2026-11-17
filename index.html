@@ -1822,6 +1822,71 @@ th {
     min-width: 90px;
 }
 
+
+/* Expanded personnel profile only — reference certificate palette and ruling.
+   No layout dimensions, spacing, controls or record contents are altered. */
+#passportPanel:has(.service-record-layout) {
+    background-color: #f3ebd7;
+    border-color: #8b7348;
+    border-radius: 0;
+    box-shadow: inset 0 0 0 7px #f3ebd7, inset 0 0 0 9px #8b7348, inset 0 0 0 13px #f3ebd7, inset 0 0 0 14px #8b7348, 0 18px 45px rgba(0,0,0,.12);
+    color: #30271e;
+    font-family: Georgia, "Times New Roman", serif;
+}
+/* Draw diamonds above the inset rules without capturing clicks. */
+#passportPanel:has(.service-record-layout)::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgdmlld0JveD0iMCAwIDEwIDEwIj48cGF0aCBkPSJNMCA1IDUgMCAxMCA1IDUgMTBaIiBmaWxsPSIjOGI3MzQ4Ii8+PC9zdmc+"), url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgdmlld0JveD0iMCAwIDEwIDEwIj48cGF0aCBkPSJNMCA1IDUgMCAxMCA1IDUgMTBaIiBmaWxsPSIjOGI3MzQ4Ii8+PC9zdmc+"), url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgdmlld0JveD0iMCAwIDEwIDEwIj48cGF0aCBkPSJNMCA1IDUgMCAxMCA1IDUgMTBaIiBmaWxsPSIjOGI3MzQ4Ii8+PC9zdmc+"), url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgdmlld0JveD0iMCAwIDEwIDEwIj48cGF0aCBkPSJNMCA1IDUgMCAxMCA1IDUgMTBaIiBmaWxsPSIjOGI3MzQ4Ii8+PC9zdmc+");
+    background-position: left 16px top 16px, right 16px top 16px, left 16px bottom 16px, right 16px bottom 16px;
+    background-repeat: no-repeat;
+}
+#passportPanel .service-history-panel,
+#passportPanel .service-history-panel h2,
+#passportPanel .service-details-divider { border-color: #8b7348; }
+#passportPanel .service-history-panel h2,
+#passportPanel .service-honours-box h3 { color: #30271e; font-weight: normal; }
+#passportPanel .service-history-section h3 { color: #761c25; }
+#passportPanel .service-history-entry,
+#passportPanel .service-honour-row { border-color: #b9aa8b; }
+#passportPanel .service-history-entry,
+#passportPanel .service-field-box small,
+#passportPanel .service-current-box small,
+#passportPanel .person-meta,
+#passportPanel .record-id,
+#passportPanel .profile-last-edited { font-family: Georgia, "Times New Roman", serif; }
+#passportPanel .service-field-box small,
+#passportPanel .service-current-box small,
+#passportPanel .person-meta,
+#passportPanel .profile-last-edited { color: #75664e; }
+#passportPanel .service-field-box small { text-transform: uppercase; letter-spacing: .6px; }
+#passportPanel .record-id { color: #761c25; letter-spacing: 1.5px; }
+#passportPanel .roblox-avatar-frame {
+    border-color: #8b7348;
+    border-radius: 0;
+    background: #e3dac5;
+    outline: 1px solid #8b7348;
+    outline-offset: -5px;
+}
+#passportPanel .service-field-box {
+    border-color: transparent transparent #8b7348;
+    border-radius: 0;
+    background: transparent;
+}
+#passportPanel .service-current-box {
+    border-color: #8b7348;
+    border-radius: 0;
+    background: transparent;
+}
+#passportPanel .service-honours-box {
+    border-color: transparent;
+    border-radius: 0;
+    background: transparent;
+}
+#passportPanel .service-honours-box h3 { border-bottom: 1px solid #8b7348; }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
