@@ -1941,7 +1941,7 @@ th {
 }
 
 /* Korps establishment and certificate designation. */
-.korps-entry-grid{display:grid;grid-template-columns:minmax(170px,1.3fr) minmax(140px,1fr) auto auto minmax(130px,1fr) auto;gap:14px;align-items:end}
+.korps-entry-grid{display:grid;grid-template-columns:minmax(150px,1.3fr) minmax(150px,1fr) minmax(140px,1fr) auto auto minmax(130px,1fr) auto;gap:14px;align-items:end}
 .korps-entry-grid label{margin:0;font-size:14px;min-width:0}
 #korpsEstablishment .korps-entry-grid :is(input,select,button){height:46px;min-height:46px;font-size:14px;line-height:normal;white-space:nowrap;overflow-wrap:normal}
 #korpsEstablishment .korps-entry-grid button{margin:0;padding:8px 12px}
@@ -1956,7 +1956,7 @@ th {
 :is(#passportPanel,.certificate-profile-export) .service-current-grid .service-current-box{border:0;border-bottom:1px solid #8b7348;display:flex;flex-direction:column;justify-content:center}
 :is(#passportPanel,.certificate-profile-export) .service-current-grid .service-current-box:nth-child(odd):not(.service-korps-box){border-right:1px solid #8b7348}
 :is(#passportPanel,.certificate-profile-export) .service-current-grid .service-current-box strong{font-size:16px}
-@media(max-width:1150px){.korps-entry-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1450px){.korps-entry-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.korps-entry-grid{grid-template-columns:1fr}:is(#passportPanel,.certificate-profile-export) .service-current-grid .service-current-box:nth-child(odd):not(.service-korps-box){border-right:0}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2351,6 +2351,7 @@ Enter
 <p class="quick-recorder-help">Establish a Korps and assign existing regiments in the roster below.</p>
 <div class="korps-entry-grid">
 <label>Korps Title<input id="korpsTitle" maxlength="200" autocomplete="off"></label>
+<label>Commander Username<input id="korpsCommander" maxlength="200" autocomplete="off"></label>
 <label>Record Date<input id="korpsDate" type="date" onchange="clearSpecialRecordDate('korpsDate')"></label>
 <button class="secondary-btn" type="button" onclick="clearSpecialRecordDate('korpsDate');document.getElementById('korpsDate').value=getTodayISO()">Set Date to Today</button>
 <button class="secondary-btn" type="button" onclick="setSpecialRecordDate('korpsDate','Before September 2026')">Before September 2026</button>
@@ -3932,9 +3933,10 @@ async function createKorps() {
     const title=document.getElementById("korpsTitle").value.trim(), type=document.getElementById("korpsType").value;
     if(!title||!KORPS_TYPES.includes(type)){korpsFeedback("Enter a Korps title and type.");return;}
     if(!korpsReady){korpsFeedback("Korps database unavailable. Apply the migration and refresh.");return;}
+    const commander=document.getElementById("korpsCommander").value.trim();
     const date=getRecordDateFromInput("korpsDate");
-    if(await korpsWrite(()=>supabaseClient.from("registry_korps").insert({title,unit_type:type,record_date:date}),"Korps established.")){
-       document.getElementById("korpsTitle").value="";clearSpecialRecordDate("korpsDate");document.getElementById("korpsDate").value="";
+    if(await korpsWrite(()=>supabaseClient.from("registry_korps").insert({title,commander,unit_type:type,record_date:date}),"Korps established.")){
+       document.getElementById("korpsTitle").value="";document.getElementById("korpsCommander").value="";clearSpecialRecordDate("korpsDate");document.getElementById("korpsDate").value="";
     }
 }
 function toggleKorps(id){if(expandedKorps.has(id))expandedKorps.delete(id);else expandedKorps.add(id);renderKorpsRoster();}
@@ -3959,6 +3961,54 @@ async function editKorps(id,field){
     else return;
     await korpsWrite(()=>supabaseClient.from("registry_korps").update({[field]:value}).eq("id",id),"Korps updated.");
 }
+let pendingFormationDate = null;
+function openFormationDateEditor(kind, id) {
+    if(userRole !== "staff" || (kind === "unit" && staffRole !== "admin")) return;
+    const record = (kind === "unit" ? unitRoster : korpsRecords).find(r => String(r.id) === String(id));
+    if(!record) return;
+    pendingFormationDate = {kind,id};
+    const date = kind === "unit" ? record.date : record.record_date;
+    const dialog = document.getElementById("formationDateDialog");
+    const input = document.getElementById("formationDateInput");
+    clearSpecialRecordDate(input.id);
+    input.value = /^\d{4}-\d{2}-\d{2}$/.test(date || "") ? date : "";
+    if(date === SPECIAL_RECORD_DATE_BEFORE_SEPTEMBER_2026) setSpecialRecordDate(input.id,date);
+    document.getElementById("formationDateTitle").textContent = "Edit Creation Date — " + record.title;
+    document.getElementById("formationDateCurrent").textContent = "Current creation date: " + (date || "—");
+    updateFormationDateChoice();
+    dialog.showModal();
+}
+function updateFormationDateChoice() {
+    document.getElementById("formationDateChoice").textContent = "Selected: " + (getRecordDateFromInput("formationDateInput",false) || "—");
+}
+async function saveFormationDate() {
+    const pending = pendingFormationDate;
+    if(!pending || userRole !== "staff" || (pending.kind === "unit" && staffRole !== "admin")) return;
+    const record = (pending.kind === "unit" ? unitRoster : korpsRecords).find(r => String(r.id) === String(pending.id));
+    if(!record) return;
+    const date = getRecordDateFromInput("formationDateInput",false);
+    if(!date || (date !== SPECIAL_RECORD_DATE_BEFORE_SEPTEMBER_2026 && !/^\d{4}-\d{2}-\d{2}$/.test(date))) { alert("Choose a creation date."); return; }
+    const oldDate = pending.kind === "unit" ? record.date : record.record_date;
+    if(date === oldDate) { alert("The creation date has not changed."); return; }
+    const save = document.getElementById("formationDateSave");
+    save.disabled = true;
+    try {
+        if(pending.kind === "korps") {
+            if(!await korpsWrite(()=>supabaseClient.from("registry_korps").update({record_date:date}).eq("id",record.id),"Korps creation date updated.")) return;
+        } else {
+            if(!await getAuthenticatedRegistryUser()) throw new Error("Administrator session not available.");
+            const updated = {...record,date};
+            const {error} = await supabaseClient.from("registry_units").update({data:updated,updated_at:new Date().toISOString()}).eq("id",record.id).select("id").single();
+            if(error) throw error;
+            record.date = date;
+            addAudit("Changed creation date of " + record.title + " from " + (oldDate || "—") + " to " + date);
+            saveData(); renderEverything();
+        }
+        document.getElementById("formationDateDialog").close();
+        pendingFormationDate = null;
+    } catch(error) { alert("Could not save creation date: " + (error.message || error)); }
+    finally { save.disabled = false; }
+}
 function renderKorpsRoster(){
     const panel=document.getElementById("korpsRosterTable");if(!panel)return;
     const staff=userRole==="staff", cols=staff?8:7;
@@ -3971,7 +4021,7 @@ function renderKorpsRoster(){
         const open=expandedKorps.has(k.id);
         const children=open?members.map(u=>`<tr class="korps-child"><td colspan="${cols-1}">↳ <strong>${escapeHTML(u.title)}</strong> — ${escapeHTML(u.commander||"Unassigned")} — ${personnel.filter(p=>normalizeRobloxUsername(p.unit||"")===normalizeRobloxUsername(u.title)).length} member(s)</td><td>${staff?`<button class="unit-status-btn" title="Remove regiment" onclick="removeKorpsRegiment('${id}','${escapeHTML(escapeJS(u.id))}')">×</button>`:""}</td></tr>`).join(""):"";
         const add=staff&&addingKorps===k.id?`<tr class="korps-child"><td colspan="${cols}"><select class="korps-add-select" id="korpsAdd-${id}"><option value="">Select available regiment...</option>${free.map(u=>`<option value="${escapeHTML(u.id)}">${escapeHTML(u.title)}</option>`).join("")}</select> <button class="secondary-btn" onclick="addKorpsRegiment('${id}')">Add</button></td></tr>`:"";
-        return `<tr><td><button class="unit-status-btn" aria-expanded="${open}" onclick="toggleKorps('${id}')">${open?"▴":"▾"}</button> <strong>${escapeHTML(k.title)}</strong> ${staff?`<button class="unit-status-btn" title="Add regiment" onclick="showKorpsAdd('${id}')">+</button>`:""}</td><td>${escapeHTML(k.commander||"Unassigned")}</td><td>${escapeHTML(k.record_date)}</td><td>${members.length}</td><td>${count}</td><td>${escapeHTML(k.unit_type)}</td><td class="${k.status==="Archived"?"unit-status-archived":"unit-status-active"}">${k.status==="Archived"?"Inactive":"Active"}</td>${staff?`<td><details><summary>⚙ Actions</summary><button class="secondary-btn" onclick="editKorps('${id}','commander')">Commander</button> <button class="secondary-btn" onclick="editKorps('${id}','title')">Rename</button> <button class="secondary-btn" onclick="editKorps('${id}','status')">${k.status==="Archived"?"Restore":"Archive"}</button><select id="korpsType-${id}">${KORPS_TYPES.map(t=>`<option ${t===k.unit_type?"selected":""}>${t}</option>`).join("")}</select><button class="secondary-btn" onclick="editKorps('${id}','unit_type')">Save Unit Type</button></details></td>`:""}</tr>${add}${children}`;
+        return `<tr><td><button class="unit-status-btn" aria-expanded="${open}" onclick="toggleKorps('${id}')">${open?"▴":"▾"}</button> <strong>${escapeHTML(k.title)}</strong> ${staff?`<button class="unit-status-btn" title="Add regiment" onclick="showKorpsAdd('${id}')">+</button>`:""}</td><td>${escapeHTML(k.commander||"Unassigned")}</td><td>${escapeHTML(k.record_date)}</td><td>${members.length}</td><td>${count}</td><td>${escapeHTML(k.unit_type)}</td><td class="${k.status==="Archived"?"unit-status-archived":"unit-status-active"}">${k.status==="Archived"?"Inactive":"Active"}</td>${staff?`<td><details><summary>⚙ Actions</summary><button class="secondary-btn" onclick="editKorps('${id}','commander')">Commander</button> <button class="secondary-btn" onclick="editKorps('${id}','title')">Rename</button> <button class="secondary-btn" onclick="openFormationDateEditor('korps','${id}')">Edit Creation Date</button> <button class="secondary-btn" onclick="editKorps('${id}','status')">${k.status==="Archived"?"Restore":"Archive"}</button><select id="korpsType-${id}">${KORPS_TYPES.map(t=>`<option ${t===k.unit_type?"selected":""}>${t}</option>`).join("")}</select><button class="secondary-btn" onclick="editKorps('${id}','unit_type')">Save Unit Type</button></details></td>`:""}</tr>${add}${children}`;
     }).join("");
     panel.innerHTML=`<div class="unit-roster-section-header"><h3>Korps Establishment</h3><div class="person-meta">Total Korps : ${rows.length}</div></div>${!korpsReady?'<div class="unit-roster-empty">Korps data unavailable.</div>':!rows.length?'<div class="unit-roster-empty">No Korps recorded.</div>':`<div class="table-container"><table><thead><tr><th>Korps Title</th><th>Commander of the Korps</th><th>Record Date</th><th>Total Regiment(s)</th><th>Total Member(s)</th><th>Unit Type</th><th>Status</th>${staff?"<th>Action</th>":""}</tr></thead><tbody>${out}</tbody></table></div>`}`;
 }
@@ -7702,6 +7752,7 @@ function renderUnitRoster() {
                                 Rename
                                 </button>
 
+                                ${staffRole === "admin" ? `<button type="button" onclick="openFormationDateEditor('unit','${escapeJS(unit.id)}')">Edit Creation Date</button>` : ""}
                                 <button type="button" onclick="toggleUnitTypeAction('${escapeJS(unit.id)}')">Unit Type</button>
                                 <div id="unitTypeAction-${escapeHTML(unit.id)}" class="hidden">
                                   <select id="unitTypeChoice-${escapeHTML(unit.id)}">${unitTypeOptions(unit.unitType)}</select>
@@ -11130,5 +11181,19 @@ document.addEventListener("click", event => {
 <div class="registry-modal-actions"><button class="secondary-btn" type="button" onclick="cancelFlagRecord()">Cancel</button><button class="primary-btn" type="button" onclick="submitRecordFlag()">Submit Flag</button></div>
 </div></div>
 
+<dialog id="formationDateDialog" class="registry-modal" style="max-width:calc(100% - 32px);color:var(--text)">
+    <h2 id="formationDateTitle">Edit Creation Date</h2>
+    <p id="formationDateCurrent"></p>
+    <label>Record Date<input id="formationDateInput" type="date" onchange="clearSpecialRecordDate(this.id);updateFormationDateChoice()"></label>
+    <p id="formationDateChoice" style="margin-top:12px"></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="secondary-btn" onclick="clearSpecialRecordDate('formationDateInput');document.getElementById('formationDateInput').value=getTodayISO();updateFormationDateChoice()">Set Date to Today</button>
+        <button type="button" class="secondary-btn" onclick="setSpecialRecordDate('formationDateInput');updateFormationDateChoice()">Before September 2026</button>
+    </div>
+    <div class="registry-modal-actions">
+        <button type="button" class="secondary-btn" onclick="document.getElementById('formationDateDialog').close()">Cancel</button>
+        <button type="button" class="primary-btn" id="formationDateSave" style="margin-top:0" onclick="saveFormationDate()">Save Creation Date</button>
+    </div>
+</dialog>
 </body>
 </html>
