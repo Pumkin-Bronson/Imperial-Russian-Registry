@@ -1940,6 +1940,24 @@ th {
     margin: 14px 0 18px;
 }
 
+/* Korps establishment and certificate designation. */
+.korps-entry-grid{display:grid;grid-template-columns:minmax(170px,1.3fr) minmax(140px,1fr) auto auto minmax(130px,1fr) auto;gap:14px;align-items:end}
+.korps-entry-grid label{margin:0;font-size:14px;min-width:0}
+#korpsEstablishment .korps-entry-grid :is(input,select,button){height:46px;min-height:46px;font-size:14px;line-height:normal;white-space:nowrap;overflow-wrap:normal}
+#korpsEstablishment .korps-entry-grid button{margin:0;padding:8px 12px}
+#korpsEstablishment #korpsDate[data-special-date]{background:#e9dfce}
+#korpsRosterTable{margin-bottom:28px}
+#korpsRosterTable td{vertical-align:middle}
+#korpsRosterTable .korps-child td{background:#f4ecd9;padding-left:28px}
+#korpsRosterTable .korps-add-select{width:auto;max-width:280px;margin:0;padding:6px}
+#korpsRosterTable button{margin:0;white-space:nowrap}
+.service-korps-box{grid-column:1/-1}
+:is(#passportPanel,.certificate-profile-export) .service-current-grid{gap:0;border-top:1px solid #8b7348}
+:is(#passportPanel,.certificate-profile-export) .service-current-grid .service-current-box{border:0;border-bottom:1px solid #8b7348;display:flex;flex-direction:column;justify-content:center}
+:is(#passportPanel,.certificate-profile-export) .service-current-grid .service-current-box:nth-child(odd):not(.service-korps-box){border-right:1px solid #8b7348}
+:is(#passportPanel,.certificate-profile-export) .service-current-grid .service-current-box strong{font-size:16px}
+@media(max-width:1150px){.korps-entry-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.korps-entry-grid{grid-template-columns:1fr}:is(#passportPanel,.certificate-profile-export) .service-current-grid .service-current-box:nth-child(odd):not(.service-korps-box){border-right:0}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -2328,6 +2346,17 @@ Enter
 </div>
 
 
+<div class="unit-recorder staff-only hidden" id="korpsEstablishment">
+<div class="small-title">FORMATION RECORD ENTRY</div><h2>Korps Establishment</h2>
+<p class="quick-recorder-help">Establish a Korps and assign existing regiments in the roster below.</p>
+<div class="korps-entry-grid">
+<label>Korps Title<input id="korpsTitle" maxlength="200" autocomplete="off"></label>
+<label>Record Date<input id="korpsDate" type="date" onchange="clearSpecialRecordDate('korpsDate')"></label>
+<button class="secondary-btn" type="button" onclick="clearSpecialRecordDate('korpsDate');document.getElementById('korpsDate').value=getTodayISO()">Set Date to Today</button>
+<button class="secondary-btn" type="button" onclick="setSpecialRecordDate('korpsDate','Before September 2026')">Before September 2026</button>
+<label>Unit Type<select id="korpsType"><option>General Staff</option><option>Guard</option><option>Infantry</option><option>Combine</option><option>Cavalry</option></select></label>
+<button class="primary-btn" type="button" onclick="createKorps()">Enter</button>
+</div><div id="korpsMessage" class="quick-feedback" aria-live="polite"></div></div>
 <div class="unit-membership-transfer-registry staff-only hidden">
 <div class="small-title">FORMATION MEMBERSHIP ADMINISTRATION</div>
 <h2>Unit Membership Transfer Registry</h2>
@@ -2402,6 +2431,7 @@ Enter
   <div id="unitTitleEditorMessage" class="quick-feedback" aria-live="polite"></div>
 </div>
 
+<div id="korpsRosterTable" class="unit-roster-section"></div>
 <div id="unitRosterTable">
 </div>
 
@@ -3864,6 +3894,87 @@ function saveData() {
    SHARED PERSONNEL + UNIT DATA — SUPABASE SYNC
    ========================================================= */
 
+const KORPS_TYPES = ["General Staff","Guard","Infantry","Combine","Cavalry"];
+let korpsRecords = [], korpsMemberships = [], korpsReady = false, korpsBusy = false;
+const expandedKorps = new Set();
+let addingKorps = null;
+async function loadKorpsData() {
+    try {
+        const [a,b] = await Promise.all([supabaseClient.from("registry_korps").select("*"),supabaseClient.from("registry_korps_memberships").select("*")]);
+        if(a.error || b.error) throw a.error || b.error;
+        korpsRecords=a.data||[]; korpsMemberships=b.data||[]; korpsReady=true;
+    } catch(e) { korpsReady=false; korpsRecords=[]; korpsMemberships=[]; console.error("Korps load failed",e); }
+}
+function korpsForPerson(person) {
+    if(!korpsReady) return "Unavailable";
+    const unit=unitRoster.find(u=>normalizeRobloxUsername(u.title)===normalizeRobloxUsername(person.unit||""));
+    const link=unit && korpsMemberships.find(m=>m.regiment_id===String(unit.id));
+    const k=link && korpsRecords.find(k=>k.id===link.korps_id);
+    return k ? k.title : "Unassigned";
+}
+function korpsFeedback(message, success=false) {
+    const el=document.getElementById("korpsMessage"); if(el){el.textContent=message;el.className="quick-feedback "+(success?"success":"warning");}
+}
+async function korpsWrite(operation, message) {
+    if(userRole!=="staff" || !korpsReady || korpsBusy) return false;
+    korpsBusy=true;
+    try {
+        const result=await operation(); if(result.error) throw result.error;
+        await loadKorpsData(); renderKorpsRoster();
+        if(selectedPerson) openPassport(selectedPerson);
+        if(!korpsReady){korpsFeedback("Saved, but reload failed. Refresh the page.");return false;}
+        korpsFeedback(message,true); return true;
+    } catch(e){korpsFeedback(e.message||"Could not save Korps record.");alert(e.message||"Could not save Korps record.");return false;}
+    finally{korpsBusy=false;}
+}
+async function createKorps() {
+    if(userRole!=="staff")return;
+    const title=document.getElementById("korpsTitle").value.trim(), type=document.getElementById("korpsType").value;
+    if(!title||!KORPS_TYPES.includes(type)){korpsFeedback("Enter a Korps title and type.");return;}
+    if(!korpsReady){korpsFeedback("Korps database unavailable. Apply the migration and refresh.");return;}
+    const date=getRecordDateFromInput("korpsDate");
+    if(await korpsWrite(()=>supabaseClient.from("registry_korps").insert({title,unit_type:type,record_date:date}),"Korps established.")){
+       document.getElementById("korpsTitle").value="";clearSpecialRecordDate("korpsDate");document.getElementById("korpsDate").value="";
+    }
+}
+function toggleKorps(id){if(expandedKorps.has(id))expandedKorps.delete(id);else expandedKorps.add(id);renderKorpsRoster();}
+function showKorpsAdd(id){if(userRole!=="staff")return;addingKorps=addingKorps===id?null:id;expandedKorps.add(id);renderKorpsRoster();}
+async function addKorpsRegiment(id){
+    if(userRole!=="staff")return;
+    const regiment=document.getElementById("korpsAdd-"+id)?.value;
+    if(!regiment||!unitRoster.some(u=>String(u.id)===regiment)||korpsMemberships.some(m=>m.regiment_id===regiment))return;
+    addingKorps=null; await korpsWrite(()=>supabaseClient.from("registry_korps_memberships").insert({regiment_id:regiment,korps_id:id}),"Regiment assigned.");
+}
+async function removeKorpsRegiment(id,regiment){
+    if(userRole!=="staff"||!confirm("Remove this regiment from the Korps? Its personnel and regiment record will remain unchanged."))return;
+    await korpsWrite(()=>supabaseClient.from("registry_korps_memberships").delete().eq("korps_id",id).eq("regiment_id",regiment),"Regiment removed.");
+}
+async function editKorps(id,field){
+    if(userRole!=="staff")return;
+    const k=korpsRecords.find(k=>k.id===id);if(!k)return;
+    let value;
+    if(field==="status"){value=k.status==="Archived"?"Active":"Archived";if(!confirm(value+" this Korps?"))return;}
+    else if(field==="unit_type"){value=document.getElementById("korpsType-"+id)?.value;if(!KORPS_TYPES.includes(value))return;}
+    else if(field==="commander"||field==="title"){value=prompt(field==="title"?"Korps title":"Commander of the Korps",k[field]||"");if(value===null)return;value=value.trim();if(field==="title"&&!value)return;}
+    else return;
+    await korpsWrite(()=>supabaseClient.from("registry_korps").update({[field]:value}).eq("id",id),"Korps updated.");
+}
+function renderKorpsRoster(){
+    const panel=document.getElementById("korpsRosterTable");if(!panel)return;
+    const staff=userRole==="staff", cols=staff?8:7;
+    const rows=korpsRecords.slice().sort((a,b)=>Number(a.status==="Archived")-Number(b.status==="Archived")||KORPS_TYPES.indexOf(a.unit_type)-KORPS_TYPES.indexOf(b.unit_type)||a.title.localeCompare(b.title));
+    const free=unitRoster.filter(u=>!korpsMemberships.some(m=>m.regiment_id===String(u.id))).sort(compareUnitsByType);
+    const out=rows.map(k=>{
+        const id=escapeHTML(k.id), members=korpsMemberships.filter(m=>m.korps_id===k.id).map(m=>unitRoster.find(u=>String(u.id)===m.regiment_id)).filter(Boolean).sort(compareUnitsByType);
+        const names=new Set(members.map(u=>normalizeRobloxUsername(u.title)));
+        const count=personnel.filter(p=>names.has(normalizeRobloxUsername(p.unit||""))).length;
+        const open=expandedKorps.has(k.id);
+        const children=open?members.map(u=>`<tr class="korps-child"><td colspan="${cols-1}">↳ <strong>${escapeHTML(u.title)}</strong> — ${escapeHTML(u.commander||"Unassigned")} — ${personnel.filter(p=>normalizeRobloxUsername(p.unit||"")===normalizeRobloxUsername(u.title)).length} member(s)</td><td>${staff?`<button class="unit-status-btn" title="Remove regiment" onclick="removeKorpsRegiment('${id}','${escapeHTML(escapeJS(u.id))}')">×</button>`:""}</td></tr>`).join(""):"";
+        const add=staff&&addingKorps===k.id?`<tr class="korps-child"><td colspan="${cols}"><select class="korps-add-select" id="korpsAdd-${id}"><option value="">Select available regiment...</option>${free.map(u=>`<option value="${escapeHTML(u.id)}">${escapeHTML(u.title)}</option>`).join("")}</select> <button class="secondary-btn" onclick="addKorpsRegiment('${id}')">Add</button></td></tr>`:"";
+        return `<tr><td><button class="unit-status-btn" aria-expanded="${open}" onclick="toggleKorps('${id}')">${open?"▴":"▾"}</button> <strong>${escapeHTML(k.title)}</strong> ${staff?`<button class="unit-status-btn" title="Add regiment" onclick="showKorpsAdd('${id}')">+</button>`:""}</td><td>${escapeHTML(k.commander||"Unassigned")}</td><td>${escapeHTML(k.record_date)}</td><td>${members.length}</td><td>${count}</td><td>${escapeHTML(k.unit_type)}</td><td class="${k.status==="Archived"?"unit-status-archived":"unit-status-active"}">${k.status==="Archived"?"Inactive":"Active"}</td>${staff?`<td><details><summary>⚙ Actions</summary><button class="secondary-btn" onclick="editKorps('${id}','commander')">Commander</button> <button class="secondary-btn" onclick="editKorps('${id}','title')">Rename</button> <button class="secondary-btn" onclick="editKorps('${id}','status')">${k.status==="Archived"?"Restore":"Archive"}</button><select id="korpsType-${id}">${KORPS_TYPES.map(t=>`<option ${t===k.unit_type?"selected":""}>${t}</option>`).join("")}</select><button class="secondary-btn" onclick="editKorps('${id}','unit_type')">Save Unit Type</button></details></td>`:""}</tr>${add}${children}`;
+    }).join("");
+    panel.innerHTML=`<div class="unit-roster-section-header"><h3>Korps Establishment</h3><div class="person-meta">Total Korps : ${rows.length}</div></div>${!korpsReady?'<div class="unit-roster-empty">Korps data unavailable.</div>':!rows.length?'<div class="unit-roster-empty">No Korps recorded.</div>':`<div class="table-container"><table><thead><tr><th>Korps Title</th><th>Commander of the Korps</th><th>Record Date</th><th>Total Regiment(s)</th><th>Total Member(s)</th><th>Unit Type</th><th>Status</th>${staff?"<th>Action</th>":""}</tr></thead><tbody>${out}</tbody></table></div>`}`;
+}
 let registryCoreSyncTimer = null;
 let registryCoreSyncPromise = Promise.resolve();
 
@@ -3955,6 +4066,7 @@ async function fetchSupabaseCollection(tableName) {
 }
 
 async function loadRegistryCoreDataFromSupabase({allowMigration = false} = {}) {
+    await loadKorpsData();
     try {
         const [remotePersonnel, remoteUnits] = await Promise.all([
             fetchSupabaseCollection("registry_personnel"),
@@ -6525,7 +6637,7 @@ function serviceHistorySortValue(dateText) {
         <div class="service-eagle">
             ${imperialEagleSVG()}
         </div>
-        <div class="service-certificate-authority">Main Staff of His Imperial Majesty</div>
+        <div class="service-certificate-authority">VOYENNOYE MINISTERSTVO</div>
         <div class="service-certificate-title">Certificate of Military Service</div>
         <div class="record-id">No. ${escapeHTML(person.id)}</div>
     </header>
@@ -6738,6 +6850,10 @@ function serviceHistorySortValue(dateText) {
 
                 </div>
 
+                <div class="service-current-box service-korps-box">
+                    <small>Korps</small>
+                    <strong>${escapeHTML(korpsForPerson(person))}</strong>
+                </div>
             </div>
 
 
@@ -7461,7 +7577,7 @@ function confirmUnitRename() {
 
 
 function renderUnitRoster() {
-
+    renderKorpsRoster();
     const panel =
     document
     .getElementById("unitRosterTable");
