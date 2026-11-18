@@ -1909,6 +1909,37 @@ th {
 .certificate-profile-export .roblox-avatar-frame { position: relative; outline: none; }
 .certificate-profile-export .certificate-export-portrait-rule { inset: 3px; z-index: 1; }
 
+/* Full-width ceremonial header for the expanded profile and its PNG copy. */
+:is(#passportPanel, .certificate-profile-export) .service-certificate-header {
+    text-align: center;
+    font-family: Georgia, "Times New Roman", serif;
+    color: #30271e;
+    padding: 0 36px;
+}
+:is(#passportPanel, .certificate-profile-export) .service-certificate-army {
+    font-size: 14px;
+    letter-spacing: 3px;
+    margin-bottom: 10px;
+}
+:is(#passportPanel, .certificate-profile-export) .service-certificate-header .service-eagle { margin-bottom: 10px; }
+:is(#passportPanel, .certificate-profile-export) .service-certificate-authority {
+    font-size: 17px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+:is(#passportPanel, .certificate-profile-export) .service-certificate-title {
+    font-size: 30px;
+    line-height: 1.2;
+    margin-bottom: 9px;
+}
+:is(#passportPanel, .certificate-profile-export) .service-certificate-rules {
+    height: 6px;
+    border-top: 1px solid #8b7348;
+    border-bottom: 1px solid #8b7348;
+    margin: 14px 0 18px;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -6489,6 +6520,16 @@ function serviceHistorySortValue(dateText) {
     panel.innerHTML = `
 
     <button class="profile-export-btn" type="button" title="Download profile as image" aria-label="Download profile as image" onclick="downloadPersonnelProfileImage('${escapeJS(person.id)}')">&#x2913;</button>
+    <header class="service-certificate-header">
+        <div class="service-certificate-army">RUSSKAYA IMPERATORSKAYA ARMIYA</div>
+        <div class="service-eagle">
+            ${imperialEagleSVG()}
+        </div>
+        <div class="service-certificate-authority">Main Staff of His Imperial Majesty</div>
+        <div class="service-certificate-title">Certificate of Military Service</div>
+        <div class="record-id">No. ${escapeHTML(person.id)}</div>
+    </header>
+    <div class="service-certificate-rules" aria-hidden="true"></div>
     <div class="service-record-layout">
 
         <section class="service-history-panel">
@@ -6506,14 +6547,6 @@ function serviceHistorySortValue(dateText) {
 
         <section class="service-profile-panel">
 
-            <div class="service-eagle">
-                ${imperialEagleSVG()}
-            </div>
-
-
-            <div class="record-id" style="text-align:center;margin-bottom:18px;">
-            No. ${escapeHTML(person.id)}
-            </div>
 
             ${userRole === "staff" ? `
             <div style="text-align:center;margin-bottom:16px;">
