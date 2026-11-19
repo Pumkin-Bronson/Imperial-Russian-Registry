@@ -1971,7 +1971,7 @@ th {
     font-family: Georgia, "Times New Roman", serif;
 }
 .service-certificate-authentication { font-size: 15px; letter-spacing: 2px; }
-.service-certificate-issued { font-size: 14px; margin-top: 14px; }
+.service-certificate-imperial-title { font-size: 14px; margin-top: 14px; font-style: italic; line-height: 1.5; max-width: 520px; overflow-wrap: break-word; }
 .service-certificate-seal {
     display: block; width: 150px; height: 150px; object-fit: contain;
     flex: 0 0 150px; transform: rotate(-12deg); opacity: .88;
@@ -6957,9 +6957,9 @@ function serviceHistorySortValue(dateText) {
 
     </div>
     <footer class="service-certificate-footer">
-        <div>
-            <div class="service-certificate-authentication">DULY AUTHENTICATED</div>
-            <div class="service-certificate-issued">Issued: ${escapeHTML(certificateIssueDate(person))}</div>
+        <div style="min-width: 0;">
+            <div class="service-certificate-authentication">BY IMPERIAL AUTHORITY</div>
+            <div class="service-certificate-imperial-title">Holy Emperor of all Russias, King of Poland, Grand Duke of The Duchy of Finland</div>
         </div>
         <img class="service-certificate-seal" src="./stampzio.png" alt="Ministry of War seal" width="150" height="150">
     </footer>
