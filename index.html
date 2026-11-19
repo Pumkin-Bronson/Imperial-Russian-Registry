@@ -1958,6 +1958,29 @@ th {
 :is(#passportPanel,.certificate-profile-export) .service-current-grid .service-current-box strong{font-size:16px}
 @media(max-width:1450px){.korps-entry-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.korps-entry-grid{grid-template-columns:1fr}:is(#passportPanel,.certificate-profile-export) .service-current-grid .service-current-box:nth-child(odd):not(.service-korps-box){border-right:0}}
+/* Full-width certificate authentication footer; shared by live and PNG views. */
+:is(#passportPanel,.certificate-profile-export) .service-certificate-footer {
+    border-top: 4px double #8b7348;
+    margin-top: 18px;
+    padding: 18px 30px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    color: #30271e;
+    font-family: Georgia, "Times New Roman", serif;
+}
+.service-certificate-authentication { font-size: 15px; letter-spacing: 2px; }
+.service-certificate-issued { font-size: 14px; margin-top: 14px; }
+.service-certificate-seal {
+    display: block; width: 150px; height: 150px; object-fit: contain;
+    flex: 0 0 150px; transform: rotate(-12deg); opacity: .88;
+    margin: 8px 12px;
+}
+@media(max-width:650px) {
+    :is(#passportPanel,.certificate-profile-export) .service-certificate-footer { padding: 14px 8px; gap: 10px; flex-wrap: wrap; }
+    .service-certificate-seal { width: 110px; height: 110px; flex-basis: 110px; }
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -3163,6 +3186,15 @@ function recordPersonnelEditorChanges(){
     });
     snapshotPersonnelEdits();
 }
+function certificateIssueDate(person) {
+    const value = person.createdAt;
+    if (!value) return "Not recorded";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Not recorded";
+    return new Intl.DateTimeFormat("en-GB", {
+        day: "numeric", month: "long", year: "numeric", timeZone: "UTC"
+    }).format(date);
+}
 function personnelEditorStamp(person){
     if(userRole !== "staff" || !person.lastEditedAt || !person.lastEditedBy) return "";
     const date = new Date(person.lastEditedAt);
@@ -4105,13 +4137,19 @@ function queueRegistryCoreSync() {
 async function fetchSupabaseCollection(tableName) {
     const { data, error } = await supabaseClient
         .from(tableName)
-        .select("id, data, updated_at")
+        .select(tableName === "registry_personnel" ? "*" : "id, data, updated_at")
         .order("updated_at", { ascending: true });
 
     if(error) throw error;
 
     return (data || [])
-        .map(row => row && row.data ? row.data : null)
+        .map(row => {
+            if (!row || !row.data) return null;
+            if (tableName === "registry_personnel" && !row.data.createdAt && row.created_at) {
+                return {...row.data, createdAt: row.created_at};
+            }
+            return row.data;
+        })
         .filter(Boolean);
 }
 
@@ -6918,6 +6956,13 @@ function serviceHistorySortValue(dateText) {
         </section>
 
     </div>
+    <footer class="service-certificate-footer">
+        <div>
+            <div class="service-certificate-authentication">DULY AUTHENTICATED</div>
+            <div class="service-certificate-issued">Issued: ${escapeHTML(certificateIssueDate(person))}</div>
+        </div>
+        <img class="service-certificate-seal" src="./stampzio.png" alt="Ministry of War seal" width="150" height="150">
+    </footer>
     ${personnelEditorStamp(person)}
 
     `;
@@ -8852,6 +8897,7 @@ function submitQuickRecord() {
 
         person = {
             id: generatePersonnelID(),
+            createdAt: new Date().toLocaleDateString("sv-SE"),
             name: username,
             username: username,
             robloxId: "",
@@ -9534,6 +9580,8 @@ function addPersonnel() {
 
         id:
         newID,
+
+        createdAt: new Date().toLocaleDateString("sv-SE"),
 
         name:
         name,
