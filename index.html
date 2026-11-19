@@ -2742,11 +2742,19 @@ The selected date and note will be stored with the rank, medal or title record.
  <h2>Bulk Personnel Import Registry</h2>
  <div class="bulk-instructions"><strong>Instructions for Use</strong>
  <ol><li>Select a regiment or retain the general template, then download the Excel template.</li>
+ <li>Open the downloaded template using a spreadsheet application. <strong>Microsoft Excel is recommended</strong> to preserve the template structure and dropdown lists. Alternative applications and their export options are:
+ <ul>
+ <li><strong>Microsoft Excel (Windows, Mac or web):</strong> Save or download a copy as Excel Workbook (.xlsx).</li>
+ <li><strong>Apple Numbers (Mac):</strong> File &gt; Export To &gt; Excel (.xlsx). Keep the Personnel worksheet and its original headings.</li>
+ <li><strong>Google Sheets:</strong> Open the template, then use File &gt; Download &gt; Microsoft Excel (.xlsx).</li>
+ <li><strong>LibreOffice Calc:</strong> File &gt; Save As, then select Excel 2007-365 (.xlsx) and confirm the Excel format if prompted.</li>
+ </ul>
+ Alternative applications may alter dropdowns or worksheet structure. Check that the Personnel worksheet, original column headings and exact rank and regiment values remain intact before uploading.</li>
  <li>Complete one row per person. Roblox Username, Rank, Record Date and Regiment are mandatory. Roblox ID is optional; enter digits only.</li>
  <li>Record Date must be in <strong>DD/MM/YYYY</strong> format (e.g. 19/11/2026), or enter <strong>Before September 2026</strong>.</li>
  <li>Regiment names must match exactly the spelling recorded in the <strong>Regiment / Unit</strong> registry. Use the provided dropdowns for rank and regiment. Do not change the column headings.</li>
- <li>Save as .xlsx, select the file and verify. Review the results, then confirm registration. Existing profiles will not be overwritten.</li>
- <li>Download the registration receipt or detailed report after registration completes.</li></ol></div>
+ <li>Save or export the completed template as <strong>Microsoft Excel Workbook (.xlsx)</strong> only. Do not upload CSV, PDF, .numbers, .ods or .xls files. Select the saved .xlsx file and click Verify Personnel Records. Review the results, then confirm registration. Existing profiles will not be overwritten.</li>
+ <li>After registration completes, download the <strong>Registration Receipt (PDF)</strong> for viewing, printing or archival purposes, or the <strong>Registration Report (Excel .xlsx)</strong> for reviewing individual results and invalid creation reasons in a spreadsheet application. Neither report is an import template.</li></ol></div>
  <div class="bulk-controls"><select id="bulkTemplateUnit" aria-label="Template regiment" onfocus="bulkRefreshUnits()"><option value="">General template</option></select><button class="secondary-btn" onclick="bulkDownloadTemplate()">Download Excel Template</button><button class="secondary-btn" onclick="document.getElementById('bulkFile').click()">Select Excel File</button></div>
  <input id="bulkFile" type="file" accept=".xlsx" class="hidden" onchange="bulkSelectFile()">
  <p id="bulkFilename">No file selected</p>
