@@ -2235,6 +2235,8 @@ aria-live="polite">
 id="personnelSearchCategory"
 onchange="updatePersonnelSearchControls()">
 <option value="username">Roblox Username</option>
+<option value="robloxId">Roblox ID</option>
+<option value="personnelCategory">Category</option>
 <option value="rank">Rank</option>
 <option value="permissionHolder">Permission Holder in Roblox Group</option>
 <option value="medal">Medal</option>
@@ -2741,7 +2743,7 @@ The selected date and note will be stored with the rank, medal or title record.
  <div class="small-title">BULK RECORD ENTRY</div>
  <h2>Bulk Personnel Import Registry</h2>
  <div class="bulk-instructions"><strong>Instructions for Use</strong>
- <ol><li>Select a regiment or retain the general template, then download the Excel template.</li>
+ <ol><li>Select a regiment or retain the default template, then download the Excel template.</li>
  <li>Open the downloaded template using a spreadsheet application. <strong>Microsoft Excel is recommended</strong> to preserve the template structure and dropdown lists. Alternative applications and their export options are:
  <ul>
  <li><strong>Microsoft Excel (Windows, Mac or web):</strong> Save or download a copy as Excel Workbook (.xlsx).</li>
@@ -2750,12 +2752,12 @@ The selected date and note will be stored with the rank, medal or title record.
  <li><strong>LibreOffice Calc:</strong> File &gt; Save As, then select Excel 2007-365 (.xlsx) and confirm the Excel format if prompted.</li>
  </ul>
  Alternative applications may alter dropdowns or worksheet structure. Check that the Personnel worksheet, original column headings and exact rank and regiment values remain intact before uploading.</li>
- <li>Complete one row per person. Roblox Username, Rank, Record Date and Regiment are mandatory. Roblox ID is optional; enter digits only.</li>
+ <li>Complete one row per person. Roblox Username, Rank, Record Date and Regiment are mandatory. Roblox ID is optional; enter digits only. The Medal Recipient column is a visual-only checklist: choose ☐ or ☑ from its cell dropdown (not a native Excel form checkbox). It is ignored completely during import and does not award medals or affect validation.</li>
  <li>Record Date must be in <strong>DD/MM/YYYY</strong> format (e.g. 19/11/2026), or enter <strong>Before September 2026</strong>.</li>
- <li>Regiment names must match exactly the spelling recorded in the <strong>Regiment / Unit</strong> registry. Use the provided dropdowns for rank and regiment. Do not change the column headings.</li>
+ <li>Regiment names must match exactly the spelling recorded in the <strong>Regiment / Unit</strong> registry. Use the provided dropdowns for rank and regiment. Do not change the column headings. Keep the Medal Recipient heading unchanged if present.</li>
  <li>Save or export the completed template as <strong>Microsoft Excel Workbook (.xlsx)</strong> only. Do not upload CSV, PDF, .numbers, .ods or .xls files. Select the saved .xlsx file and click Verify Personnel Records. Review the results, then confirm registration. Existing profiles will not be overwritten.</li>
  <li>After registration completes, download the <strong>Registration Receipt (PDF)</strong> for viewing, printing or archival purposes, or the <strong>Registration Report (Excel .xlsx)</strong> for reviewing individual results and invalid creation reasons in a spreadsheet application. Neither report is an import template.</li></ol></div>
- <div class="bulk-controls"><select id="bulkTemplateUnit" aria-label="Template regiment" onfocus="bulkRefreshUnits()"><option value="">General template</option></select><button class="secondary-btn" onclick="bulkDownloadTemplate()">Download Excel Template</button><button class="secondary-btn" onclick="document.getElementById('bulkFile').click()">Select Excel File</button></div>
+ <div class="bulk-controls"><select id="bulkTemplateUnit" aria-label="Template regiment" onfocus="bulkRefreshUnits()"><option value="">Default Template</option></select><button class="secondary-btn" onclick="bulkDownloadTemplate()">Download Excel Template</button><button class="secondary-btn" onclick="document.getElementById('bulkFile').click()">Upload Excel File</button></div>
  <input id="bulkFile" type="file" accept=".xlsx" class="hidden" onchange="bulkSelectFile()">
  <p id="bulkFilename">No file selected</p>
  <div class="bulk-controls"><button id="bulkVerify" class="secondary-btn" onclick="bulkVerifyFile()">Verify Personnel Records</button><button id="bulkConfirm" class="primary-btn" disabled onclick="bulkRegister()">Confirm Personnel Registration</button><button id="bulkReset" class="secondary-btn" onclick="bulkResetImport()">Clear Import</button></div>
@@ -4313,6 +4315,14 @@ function getPersonnelSearchOptions(category) {
         );
     }
 
+    if(category === "personnelCategory") {
+        return ["Tsar", "General", "Adjudant", "Officer", "Personnel"];
+    }
+
+    if(category === "robloxId") {
+        return [];
+    }
+
     if(category === "permissionHolder") {
         return ["Current Permission Holders"];
     }
@@ -4407,6 +4417,8 @@ function updatePersonnelSearchControls() {
 
     const labels = {
         username: "All Roblox Usernames",
+        robloxId: "All Roblox IDs",
+        personnelCategory: "All Categories",
         rank: "All Ranks",
         permissionHolder: "Current Permission Holders",
         medal: "All Medals",
@@ -4455,7 +4467,7 @@ function updatePersonnelSearchControls() {
 
 
     const usernameMode =
-    category === "username";
+    category === "username" || category === "robloxId";
 
     if(category === "permissionHolder") {
         valueSelect.value = "Current Permission Holders";
@@ -4467,9 +4479,11 @@ function updatePersonnelSearchControls() {
 
 
     searchBox.placeholder =
-    usernameMode
+    category === "robloxId"
+    ? "Enter Roblox ID..."
+    : category === "username"
     ? "Enter Roblox Username..."
-    : "Text search available only for Roblox Username";
+    : "Select a search value above";
 
 
     if(!usernameMode) {
@@ -4673,6 +4687,11 @@ function renderPersonnel() {
     ? String(searchBox?.value || "").trim().toLowerCase()
     : "";
 
+    const typedRobloxId =
+    category === "robloxId"
+    ? String(searchBox?.value || "").trim()
+    : "";
+
 
     const filtered =
     personnel.filter(person => {
@@ -4703,6 +4722,23 @@ function renderPersonnel() {
             return true;
         }
 
+
+        if(category === "robloxId") {
+            return !typedRobloxId || String(person.robloxId || "").includes(typedRobloxId);
+        }
+
+        if(category === "personnelCategory") {
+            if(!selectedValue) return true;
+            const groups = {
+                Tsar: ["Tsar"],
+                General: ["Nachal'nik General'nogo Shtaba", "General-Feld'marshal", "General-Leytenant", "General-Mayor"],
+                Adjudant: ["General-Ad'yudant", "Fligel'-Ad'yudant", "Nachal'nik Shtaba Korpusa", "Ad'yudant", "General-Kvartimeyster", "Ober-Ofitser Kvartimeyster", "Kolonnovozhatiy"],
+                Officer: ["Polkovnik", "Podpolkovnik", "Mayor", "Kapitan", "Shtabs-Kapitan", "Poruchik", "Podporuchik", "Praporschik"],
+                Personnel: ["Feld'febel'", "Portupey-Praporschik", "Podpraporschik", "Mladshiy Unter-Ofitser", "Starshiy Ryadovoy", "Mladshiy Ryadovoy", "Rekrut"]
+            };
+            const rank = splitRegistryRank(person.rank).appointment || person.rank || "";
+            return (groups[selectedValue] || []).some(item => normalizeRobloxUsername(item) === normalizeRobloxUsername(rank));
+        }
 
         if(category === "permissionHolder") {
             return isRobloxGroupPermissionHolder(person);
@@ -11262,17 +11298,18 @@ document.addEventListener("click", event => {
 
 /* Bulk registration: insert only; never invoke the collection replacement writer. */
 const bulkHeaders = ['Roblox Username','Roblox ID','Rank','Record Date','Regiment'];
+const bulkVisualHeader = 'Medal Recipient'; // Display-only: deliberately excluded from bulkHeaders and all imported records.
 let bulkRows=[], bulkFileRows=[], bulkBusy=false, bulkReceiptData=null;
 function bulkAllowed(){return userRole==='staff' && staffRole==='admin';}
 function bulkMessage(t){document.getElementById('bulkMessage').textContent=t;}
 function bulkActiveUnits(units=unitRoster){return units.filter(u=>u.status!=='Archived' && u.title).map(u=>u.title);}
 function bulkRanks(){return QUICK_RANKS.flatMap(r=>QUICK_APPOINTMENT_RANKS.includes(r)?QUICK_SUBSTANTIVE_RANKS.map(x=>r+' - '+x):[r]);}
-function bulkRefreshUnits(){if(!bulkAllowed())return; const el=document.getElementById('bulkTemplateUnit'), old=el.value; el.replaceChildren(new Option('General template',''),...bulkActiveUnits().sort().map(x=>new Option(x,x)));el.value=bulkActiveUnits().includes(old)?old:'';}
+function bulkRefreshUnits(){if(!bulkAllowed())return; const el=document.getElementById('bulkTemplateUnit'), old=el.value; el.replaceChildren(new Option('Default Template',''),...bulkActiveUnits().sort().map(x=>new Option(x,x)));el.value=bulkActiveUnits().includes(old)?old:'';}
 function bulkLock(v){bulkBusy=v;for(const el of document.querySelectorAll('#bulkPersonnelImport button,#bulkPersonnelImport select,#bulkFile'))el.disabled=v; if(!v){document.getElementById('bulkConfirm').disabled=!bulkRows.length||!!bulkReceiptData;document.getElementById('bulkReceipt').disabled=document.getElementById('bulkReport').disabled=!bulkReceiptData;}}
 function bulkResetImport(){if(!bulkAllowed()||bulkBusy)return;bulkRows=[];bulkFileRows=[];bulkReceiptData=null;document.getElementById('bulkFile').value='';document.getElementById('bulkFilename').textContent='No file selected';document.getElementById('bulkResults').replaceChildren();bulkMessage('');bulkLock(false);}
 function bulkSelectFile(){if(!bulkAllowed()||bulkBusy)return;bulkRows=[];bulkFileRows=[];bulkReceiptData=null;document.getElementById('bulkResults').replaceChildren();document.getElementById('bulkFilename').textContent=document.getElementById('bulkFile').files[0]?.name||'No file selected';bulkMessage('Verify the selected file before registering.');bulkLock(false);}
 async function bulkSaveWorkbook(wb,name){const bytes=await wb.xlsx.writeBuffer();const url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000);}
-async function bulkDownloadTemplate(){if(!bulkAllowed()||bulkBusy)return;try{const wb=new ExcelJS.Workbook(), ws=wb.addWorksheet('Personnel'), lists=wb.addWorksheet('Reference');ws.addRow(bulkHeaders);ws.columns.forEach((c,i)=>c.width=[24,22,48,30,60][i]);ws.getRow(1).font={bold:true};ws.views=[{state:'frozen',ySplit:1}];const ranks=bulkRanks(), units=bulkActiveUnits().sort();if(!units.length)throw Error('No active regiments are available.');ranks.forEach((x,i)=>lists.getCell(i+1,1).value=x);units.forEach((x,i)=>lists.getCell(i+1,2).value=x);wb.definedNames.add(`Reference!$A$1:$A$${ranks.length}`,'ImportRanks');wb.definedNames.add(`Reference!$B$1:$B$${units.length}`,'ImportUnits');lists.state='veryHidden';const selected=document.getElementById('bulkTemplateUnit').value;for(let i=2;i<=501;i++){for(let j=1;j<=5;j++)ws.getCell(i,j).numFmt='@';for(const [j,n] of [[3,'ImportRanks'],[5,'ImportUnits']])ws.getCell(i,j).dataValidation={type:'list',allowBlank:true,formulae:[n],showErrorMessage:true,errorStyle:'stop',error:'Select an exact registered value.'};if(selected&&i<=101)ws.getCell(i,5).value=selected;}await bulkSaveWorkbook(wb,'VaM_Personnel_Import.xlsx');}catch(e){bulkMessage(e.message);}}
+async function bulkDownloadTemplate(){if(!bulkAllowed()||bulkBusy)return;try{const wb=new ExcelJS.Workbook(), ws=wb.addWorksheet('Personnel'), lists=wb.addWorksheet('Reference');ws.addRow([...bulkHeaders,bulkVisualHeader]);ws.columns.forEach((c,i)=>c.width=[24,22,48,30,60,21][i]);ws.getRow(1).font={bold:true};ws.views=[{state:'frozen',ySplit:1}];const ranks=bulkRanks(), units=bulkActiveUnits().sort();if(!units.length)throw Error('No active regiments are available.');ranks.forEach((x,i)=>lists.getCell(i+1,1).value=x);units.forEach((x,i)=>lists.getCell(i+1,2).value=x);wb.definedNames.add(`Reference!$A$1:$A$${ranks.length}`,'ImportRanks');wb.definedNames.add(`Reference!$B$1:$B$${units.length}`,'ImportUnits');lists.state='veryHidden';const selected=document.getElementById('bulkTemplateUnit').value;for(let i=2;i<=501;i++){for(let j=1;j<=6;j++)ws.getCell(i,j).numFmt='@';ws.getCell(i,6).value='☐';ws.getCell(i,6).alignment={horizontal:'center'};ws.getCell(i,6).dataValidation={type:'list',allowBlank:false,formulae:['"☐,☑"'],showErrorMessage:true,errorStyle:'stop',error:'Select an empty or ticked box.'};for(const [j,n] of [[3,'ImportRanks'],[5,'ImportUnits']])ws.getCell(i,j).dataValidation={type:'list',allowBlank:true,formulae:[n],showErrorMessage:true,errorStyle:'stop',error:'Select an exact registered value.'};if(selected&&i<=101)ws.getCell(i,5).value=selected;}await bulkSaveWorkbook(wb,'VaM_Personnel_Import.xlsx');}catch(e){bulkMessage(e.message);}}
 function bulkDate(v){if(v==='Before September 2026')return v;const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);if(!m)return '';const iso=`${m[3]}-${m[2]}-${m[1]}`, d=new Date(iso+'T00:00:00Z');return Number.isFinite(+d)&&d.toISOString().slice(0,10)===iso?iso:'';}
 async function bulkFetch(table){let all=[];for(let start=0;;start+=500){const {data,error}=await supabaseClient.from(table).select('id,data').order('id').range(start,start+499);if(error)throw error;all.push(...data.map(r=>({...r.data,id:r.id})));if(data.length<500)return all;}}
 function bulkClassify(rows,people,units){const seenNames=new Set(),seenIds=new Set(), ranks=bulkRanks(), allowed=bulkActiveUnits(units);return rows.map(r=>{const x={...r,result:'Rejected',reason:'',record:''};const name=r.username.toLowerCase(), id=r.robloxId;const byName=people.filter(p=>String(p.username||'').toLowerCase()===name),byId=id?people.filter(p=>String(p.robloxId||'')===id):[];if(!/^[A-Za-z0-9_]{3,20}$/.test(r.username)||id&&!/^[1-9]\d*$/.test(id)){x.reason='Invalid username or Roblox ID';return x;}if(seenNames.has(name)||id&&seenIds.has(id)){x.reason='Duplicate spreadsheet entry';return x;}seenNames.add(name);if(id)seenIds.add(id);if(byName.length>1||byId.length>1||byName.length&&byId.length&&byName[0].id!==byId[0].id||byName.length&&id&&byName[0].robloxId&&String(byName[0].robloxId)!==id){x.reason='Conflicting existing identity';return x;}const existing=byId[0]||byName[0];if(existing){x.result='Existing Profile Found';x.record=existing.id;x.reason='Existing profile retained unchanged';return x;}if(!r.rank||!r.date||!r.regiment){x.reason='Missing mandatory information';return x;}if(!ranks.includes(r.rank)){x.reason='Rank not recognised';return x;}if(!allowed.includes(r.regiment)){x.reason='Regiment not recognised or inactive';return x;}if(!bulkDate(r.date)){x.reason='Invalid Record Date — use DD/MM/YYYY';return x;}x.result='Ready for Registration';return x;});}
