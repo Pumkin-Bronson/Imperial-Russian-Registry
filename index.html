@@ -1995,6 +1995,37 @@ th {
 #bulkPersonnelImport table {min-width:700px;font-size:14px;}
 #bulkPersonnelImport .bulk-instructions {background:#fffdf8;border:1px solid var(--border);padding:16px;margin:16px 0;}
 @media(max-width:800px){#bulkPersonnelImport .bulk-controls,#bulkPersonnelImport .bulk-summary{grid-template-columns:1fr;}}
+
+/* Personnel ledger: shared live matrix and PNG export styling. */
+#personnelSpreadsheet > .table-container { background: #f3e8cf; border: 3px double #a58b60; }
+:is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) {
+    background: #f3e8cf; color: #493825; border-collapse: separate; border-spacing: 0;
+    border: 3px double #a58b60;
+}
+:is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) :is(th,td) {
+    font-family: Georgia, "Times New Roman", serif; color: #493825;
+    border-right: 1px solid #bda68b; border-bottom: 0;
+    background: #f3e8cf; padding: 8px 9px;
+}
+:is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) thead th {
+    background: #e9d9b8; font-style: italic; border-bottom: 3px double #a58b60;
+}
+#personnelSpreadsheet .personnel-sheet-table tbody td.sheet-col-username { background: #f3e8cf; box-shadow: 1px 0 0 #bda68b; }
+#personnelSpreadsheet .personnel-sheet-table thead th.sheet-col-username { background: #e9d9b8; }
+:is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .ledger-entry {
+    display: flex; align-items: baseline; gap: 5px; min-width: 0;
+}
+:is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .ledger-entry > span { min-width: 0; overflow-wrap: break-word; }
+:is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .ledger-leader {
+    flex: 1 0 8px; min-width: 8px; border-bottom: 1px dotted #9d8867; pointer-events: none;
+}
+:is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .sheet-crosshair-guide { background: #e4d2ad; }
+:is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) thead th.sheet-crosshair-guide { background: #d5bd91; }
+#personnelSpreadsheet .personnel-sheet-table tbody td.sheet-col-username.sheet-crosshair-guide { background: #e4d2ad; }
+:is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) td.sheet-crosshair-focus {
+    background: #bfa16f; font-weight: bold; outline: 2px solid #761c25; outline-offset: -2px; box-shadow: none;
+}
+#personnelSpreadsheet .personnel-sheet-table tbody td.sheet-col-username.sheet-crosshair-focus { background: #bfa16f; box-shadow: none; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -4651,6 +4682,18 @@ function renderPersonnelSpreadsheet(rows) {
             </td>
         </tr>`;
     }).join("");
+    body.querySelectorAll("td:not(.sheet-col-record):not(.sheet-col-permission):not(.sheet-empty-medal)").forEach(cell => {
+        if(!cell.textContent.trim()) return;
+        const entry = document.createElement("div");
+        entry.className = "ledger-entry";
+        const value = document.createElement("span");
+        while(cell.firstChild) value.appendChild(cell.firstChild);
+        const leader = document.createElement("span");
+        leader.className = "ledger-leader";
+        leader.setAttribute("aria-hidden", "true");
+        entry.append(value, leader);
+        cell.appendChild(entry);
+    });
 }
 
 function renderPersonnel() {
@@ -7068,12 +7111,12 @@ async function exportRegistryElementPNG(element, name, {sheet = false} = {}){
     clone.style.cssText += ";position:absolute!important;left:0!important;z-index:-1!important;top:0!important;height:auto!important;max-height:none!important;overflow:visible!important;transform:none!important;";
     if(sheet){
         clone.querySelectorAll(".sheet-col-record").forEach(el => el.remove());
-        clone.querySelectorAll(".sheet-crosshair-guide,.sheet-crosshair-focus").forEach(el => el.classList.remove("sheet-crosshair-guide","sheet-crosshair-focus"));
+        clone.classList.add("personnel-ledger-export");
         clone.style.width = "max-content";
         clone.style.maxWidth = "none";
         clone.style.minWidth = "0";
-        clone.style.display = "block";
-        clone.querySelectorAll("th,td").forEach(el => {el.style.position="static";el.style.boxShadow="none";});
+        clone.style.display = "table";
+        clone.querySelectorAll("th,td").forEach(el => {el.style.position="static";el.style.boxShadow="none"; if(el.classList.contains("sheet-crosshair-focus")) el.style.border="2px solid #761c25";});
     } else {
         clone.classList.add("certificate-profile-export");
         // Use real border elements because html2canvas does not render inset shadows reliably.
@@ -7114,7 +7157,7 @@ async function exportRegistryElementPNG(element, name, {sheet = false} = {}){
         /* Browser canvas limits vary; reduce scale for very large matrices. */
         const scale = Math.min(2, 16000/Math.max(width,height), Math.sqrt(60000000/(width*height)));
         if(scale <= 0 || !Number.isFinite(scale)) throw new Error("Invalid export dimensions");
-        const canvas = await html2canvas(clone,{backgroundColor:sheet ? "#fffaf0" : "#f3ebd7",useCORS:true,allowTaint:false,scale, width,height,windowWidth:Math.max(window.innerWidth,width),scrollX:0,scrollY:0,logging:false});
+        const canvas = await html2canvas(clone,{backgroundColor:sheet ? "#f3e8cf" : "#f3ebd7",useCORS:true,allowTaint:false,scale, width,height,windowWidth:Math.max(window.innerWidth,width),scrollX:0,scrollY:0,logging:false});
         const url = canvas.toDataURL("image/png");
         const link = document.createElement("a");link.href=url;link.download=name+".png";
         document.body.appendChild(link);link.click();link.remove();
