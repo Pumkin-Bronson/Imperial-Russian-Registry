@@ -2013,11 +2013,16 @@ th {
 #personnelSpreadsheet .personnel-sheet-table tbody td.sheet-col-username { background: #f3e8cf; box-shadow: 1px 0 0 #bda68b; }
 #personnelSpreadsheet .personnel-sheet-table thead th.sheet-col-username { background: #e9d9b8; }
 :is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .ledger-entry {
-    display: flex; align-items: baseline; gap: 5px; min-width: 0;
+    display: flex; align-items: flex-end; gap: 5px; min-width: 0;
 }
 :is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .ledger-entry > span { min-width: 0; overflow-wrap: break-word; }
 :is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .ledger-leader {
-    flex: 1 0 8px; min-width: 8px; border-bottom: 1px dotted #9d8867; pointer-events: none;
+    flex: 1 0 8px; min-width: 8px; height: 1em; line-height: 1;
+    overflow: hidden; white-space: nowrap; letter-spacing: 4px; color: #806747;
+    font-weight: bold; pointer-events: none;
+}
+:is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .ledger-leader::after {
+    content: "......................................................................................................................................................";
 }
 :is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .sheet-crosshair-guide { background: #e4d2ad; }
 :is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) thead th.sheet-crosshair-guide { background: #d5bd91; }
@@ -4682,8 +4687,7 @@ function renderPersonnelSpreadsheet(rows) {
             </td>
         </tr>`;
     }).join("");
-    body.querySelectorAll("td:not(.sheet-col-record):not(.sheet-col-permission):not(.sheet-empty-medal)").forEach(cell => {
-        if(!cell.textContent.trim()) return;
+    body.querySelectorAll("td:not(.sheet-col-record):not(.sheet-col-permission)").forEach(cell => {
         const entry = document.createElement("div");
         entry.className = "ledger-entry";
         const value = document.createElement("span");
@@ -4691,7 +4695,8 @@ function renderPersonnelSpreadsheet(rows) {
         const leader = document.createElement("span");
         leader.className = "ledger-leader";
         leader.setAttribute("aria-hidden", "true");
-        entry.append(value, leader);
+        if(value.textContent.trim()) entry.appendChild(value);
+        entry.appendChild(leader);
         cell.appendChild(entry);
     });
 }
