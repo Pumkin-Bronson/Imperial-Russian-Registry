@@ -2013,13 +2013,20 @@ th {
 #personnelSpreadsheet .personnel-sheet-table tbody td.sheet-col-username { background: #f3e8cf; box-shadow: 1px 0 0 #bda68b; }
 #personnelSpreadsheet .personnel-sheet-table thead th.sheet-col-username { background: #e9d9b8; }
 :is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .ledger-entry {
-    display: flex; align-items: flex-end; gap: 5px; min-width: 0;
+    display: block; position: relative; min-width: 0;
 }
 :is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .ledger-entry > span { min-width: 0; overflow-wrap: break-word; }
 :is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .ledger-leader {
-    flex: 1 0 8px; min-width: 8px; height: 1em; line-height: 1;
+    position: absolute; display: block; left: 0; right: 0; bottom: 0; height: 1em; line-height: 1;
     overflow: hidden; white-space: nowrap; letter-spacing: 4px; color: #806747;
     font-weight: bold; pointer-events: none;
+}
+/* Permission symbols retain the original centred alignment and typography. */
+:is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .sheet-col-permission .ledger-leader {
+    font-size: 12px; z-index: 0;
+}
+:is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .sheet-col-permission .ledger-entry > span:not(.ledger-leader) {
+    position: relative; z-index: 1;
 }
 :is(#personnelSpreadsheet .personnel-sheet-table, .personnel-ledger-export) .ledger-leader::after {
     content: "......................................................................................................................................................";
@@ -4548,6 +4555,7 @@ function setPersonnelViewMode(mode) {
     if(cardsButton) cardsButton.classList.toggle("active", personnelViewMode === "cards");
     if(sheetButton) sheetButton.classList.toggle("active", personnelViewMode === "sheet");
     document.getElementById("personnelSheetDownloadBtn")?.classList.toggle("hidden", personnelViewMode !== "sheet");
+    if(personnelViewMode === "sheet") layoutPersonnelLedgerLeaders(sheet?.querySelector(".personnel-sheet-table"));
 }
 
 function openPersonnelFromSpreadsheet(personID) {
@@ -4579,6 +4587,7 @@ function selectPersonnelSpreadsheetCell(cell) {
         }
     });
     cell.classList.add("sheet-crosshair-focus");
+    layoutPersonnelLedgerLeaders(table);
 }
 
 document.getElementById("personnelSpreadsheetBody")?.addEventListener("click", event => {
@@ -4687,7 +4696,7 @@ function renderPersonnelSpreadsheet(rows) {
             </td>
         </tr>`;
     }).join("");
-    body.querySelectorAll("td:not(.sheet-col-record):not(.sheet-col-permission)").forEach(cell => {
+    body.querySelectorAll("td:not(.sheet-col-record)").forEach(cell => {
         const entry = document.createElement("div");
         entry.className = "ledger-entry";
         const value = document.createElement("span");
@@ -4696,10 +4705,30 @@ function renderPersonnelSpreadsheet(rows) {
         leader.className = "ledger-leader";
         leader.setAttribute("aria-hidden", "true");
         if(value.textContent.trim()) entry.appendChild(value);
+        else entry.style.minHeight = "1em";
         entry.appendChild(leader);
         cell.appendChild(entry);
     });
 }
+
+/* Measure the final rendered text line, not the full multi-line text box. */
+function layoutPersonnelLedgerLeaders(table) {
+    if(!table || !table.getClientRects().length) return;
+    const measurements = Array.from(table.querySelectorAll(".ledger-entry")).map(entry => {
+        const leader = entry.querySelector(".ledger-leader");
+        const value = entry.querySelector("span:not(.ledger-leader)");
+        if(!leader) return null;
+        if(!value || entry.closest(".sheet-col-permission")) return [leader, 0];
+        const range = document.createRange();
+        range.selectNodeContents(value);
+        const rects = Array.from(range.getClientRects()).filter(rect => rect.width > 0);
+        const last = rects[rects.length - 1];
+        const bounds = entry.getBoundingClientRect();
+        return [leader, last ? Math.min(bounds.width, Math.max(0, last.right - bounds.left + 5)) : 0];
+    });
+    measurements.forEach(item => { if(item) item[0].style.left = item[1] + "px"; });
+}
+window.addEventListener("resize", () => layoutPersonnelLedgerLeaders(document.querySelector("#personnelSpreadsheet .personnel-sheet-table")));
 
 function renderPersonnel() {
 
@@ -7157,6 +7186,7 @@ async function exportRegistryElementPNG(element, name, {sheet = false} = {}){
     }
     document.body.appendChild(clone);
     try {
+        if(sheet) layoutPersonnelLedgerLeaders(clone);
         const width = Math.ceil(sheet ? clone.scrollWidth : Math.max(clone.scrollWidth, clone.offsetWidth));
         const height = Math.ceil(sheet ? clone.scrollHeight : Math.max(clone.scrollHeight, clone.offsetHeight));
         /* Browser canvas limits vary; reduce scale for very large matrices. */
